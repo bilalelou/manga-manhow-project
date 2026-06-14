@@ -1,4 +1,5 @@
 import styles from "./page.module.css";
+import NavbarUserMenu from "@/app/components/NavbarUserMenu";
 
 // Interface definitions for TypeScript safety
 interface MangaType {
@@ -223,7 +224,7 @@ export default async function Home() {
                                 id="nav-search-input"
                             />
                         </form>
-                        <button className="btn btn-primary" id="btn-login">تسجيل الدخول</button>
+                        <NavbarUserMenu />
                     </div>
                 </div>
             </nav>

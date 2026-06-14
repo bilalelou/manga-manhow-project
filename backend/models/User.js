@@ -38,6 +38,13 @@ const userSchema = new mongoose.Schema(
                 addedAt: { type: Date, default: Date.now },
             },
         ],
+        history: [
+            {
+                manga: { type: mongoose.Schema.Types.ObjectId, ref: "Manga" },
+                chapterNumber: { type: Number, required: true },
+                readAt: { type: Date, default: Date.now },
+            },
+        ],
     },
     {
         timestamps: true,

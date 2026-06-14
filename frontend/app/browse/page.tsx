@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import styles from "./browse.module.css";
+import NavbarUserMenu from "@/app/components/NavbarUserMenu";
 
 // Interface definitions for TypeScript safety
 interface MangaType {
@@ -324,7 +325,7 @@ function BrowseContent() {
                         <a href="/latest" className={styles.navLink}>آخر الإصدارات</a>
                     </div>
                     <div className={styles.navActions}>
-                        <button className="btn btn-primary" id="btn-login">تسجيل الدخول</button>
+                        <NavbarUserMenu />
                     </div>
                 </div>
             </nav>

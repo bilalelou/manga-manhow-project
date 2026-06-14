@@ -23,6 +23,8 @@ app.use(express.urlencoded({ extended: true }));
 // Mount Routes
 app.use("/api/mangas", require("./routes/mangaRoutes"));
 app.use("/api/chapters", require("./routes/chapterRoutes"));
+app.use("/api/auth", require("./routes/authRoutes"));
+app.use("/api/users", require("./routes/userRoutes"));
 
 // Test health route
 app.get("/api/health", (req, res) => {

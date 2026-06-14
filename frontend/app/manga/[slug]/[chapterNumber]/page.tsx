@@ -1,6 +1,7 @@
 import React from "react";
 import styles from "./chapterReader.module.css";
 import ChapterSelector from "./ChapterSelector";
+import HistoryTracker from "@/app/components/HistoryTracker";
 
 // Interface definitions
 interface MangaType {
@@ -293,6 +294,7 @@ export default async function Page({
 
     return (
         <div className={styles.wrapper}>
+            <HistoryTracker mangaId={manga._id} chapterNumber={chNumber} />
             {/* Diagnostic database connection state */}
             <div style={{
                 position: 'fixed',

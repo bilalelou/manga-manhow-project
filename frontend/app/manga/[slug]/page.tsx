@@ -1,5 +1,7 @@
 import React from "react";
 import styles from "./mangaDetails.module.css";
+import NavbarUserMenu from "@/app/components/NavbarUserMenu";
+import BookmarkButton from "@/app/components/BookmarkButton";
 
 // Interface definitions
 interface MangaType {
@@ -308,7 +310,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                                 id="nav-search-input"
                             />
                         </form>
-                        <button className="btn btn-primary" id="btn-login">تسجيل الدخول</button>
+                        <NavbarUserMenu />
                     </div>
                 </div>
             </nav>
@@ -374,7 +376,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                                 ) : (
                                     <button className="btn btn-primary" disabled style={{ opacity: 0.5, cursor: 'not-allowed' }}>قريباً</button>
                                 )}
-                                <button className="btn btn-outline">أضف للمكتبة</button>
+                                <BookmarkButton mangaId={manga._id} slug={manga.slug} />
                             </div>
                         </div>
                     </div>
