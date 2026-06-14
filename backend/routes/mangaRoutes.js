@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const Manga = require("../models/Manga");
 const Chapter = require("../models/Chapter");
 const { mockMangas, mockChapters } = require("../data/mockData");
+const { protect, adminOrTranslator } = require("../middleware/authMiddleware");
 
 // @desc Get all mangas with optional filters
 // @route GET /api/mangas
@@ -128,6 +129,115 @@ router.get("/:slug", async (req, res) => {
                 chapters
             }
         });
+    } catch (err) {
+        res.status(500).json({ status: "error", message: err.message });
+    }
+});
+
+// @desc Create a new manga
+// @route POST /api/mangas
+router.post("/", protect, adminOrTranslator, async (req, res) => {
+    try {
+        const { title, titleAr, description, coverImage, type, status, genres, author, artist, rating, isHot, isFeatured } = req.body;
+        
+        if (!title) {
+            return res.status(400).json({ status: "error", message: "عنوان المانجا مطلوب" });
+        }
+
+        const slug = title.toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/(^-|-$)/g, "");
+
+        const existingManga = await Manga.findOne({ slug });
+        if (existingManga) {
+            return res.status(400).json({ status: "error", message: "المانجا بهذا الاسم موجودة بالفعل" });
+        }
+
+        const manga = await Manga.create({
+            title,
+            titleAr,
+            slug,
+            description,
+            coverImage,
+            type,
+            status,
+            genres: Array.isArray(genres) ? genres : (genres ? genres.split(",").map(g => g.trim()).filter(Boolean) : []),
+            author,
+            artist,
+            rating: Number(rating) || 0,
+            isHot: !!isHot,
+            isFeatured: !!isFeatured
+        });
+
+        res.status(201).json({ status: "success", data: manga });
+    } catch (err) {
+        res.status(500).json({ status: "error", message: err.message });
+    }
+});
+
+// @desc Update a manga
+// @route PUT /api/mangas/:id
+router.put("/:id", protect, adminOrTranslator, async (req, res) => {
+    try {
+        const { title, titleAr, description, coverImage, type, status, genres, author, artist, rating, isHot, isFeatured } = req.body;
+        const manga = await Manga.findById(req.params.id);
+
+        if (!manga) {
+            return res.status(404).json({ status: "error", message: "المانجا غير موجودة" });
+        }
+
+        manga.title = title || manga.title;
+        manga.titleAr = titleAr !== undefined ? titleAr : manga.titleAr;
+        manga.description = description !== undefined ? description : manga.description;
+        manga.coverImage = coverImage !== undefined ? coverImage : manga.coverImage;
+        manga.type = type || manga.type;
+        manga.status = status || manga.status;
+        if (genres !== undefined) {
+            manga.genres = Array.isArray(genres) ? genres : (genres ? genres.split(",").map(g => g.trim()).filter(Boolean) : []);
+        }
+        manga.author = author !== undefined ? author : manga.author;
+        manga.artist = artist !== undefined ? artist : manga.artist;
+        manga.rating = rating !== undefined ? Number(rating) || 0 : manga.rating;
+        manga.isHot = isHot !== undefined ? !!isHot : manga.isHot;
+        manga.isFeatured = isFeatured !== undefined ? !!isFeatured : manga.isFeatured;
+
+        // Recalculate slug if title changed
+        if (title && title !== manga.title) {
+            const newSlug = title.toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/(^-|-$)/g, "");
+            const existingManga = await Manga.findOne({ slug: newSlug, _id: { $ne: manga._id } });
+            if (existingManga) {
+                return res.status(400).json({ status: "error", message: "المانجا بهذا الاسم موجودة بالفعل" });
+            }
+            manga.slug = newSlug;
+        }
+
+        await manga.save();
+        res.status(200).json({ status: "success", data: manga });
+    } catch (err) {
+        res.status(500).json({ status: "error", message: err.message });
+    }
+});
+
+// @desc Delete a manga and its chapters
+// @route DELETE /api/mangas/:id
+router.delete("/:id", protect, adminOrTranslator, async (req, res) => {
+    try {
+        const mangaId = req.params.id;
+        const manga = await Manga.findById(mangaId);
+
+        if (!manga) {
+            return res.status(404).json({ status: "error", message: "المانجا غير موجودة" });
+        }
+
+        // Delete all chapters associated with this manga
+        await Chapter.deleteMany({ manga: mangaId });
+
+        // Delete the manga itself
+        await Manga.findByIdAndDelete(mangaId);
+
+        res.status(200).json({ status: "success", message: "تم حذف العمل وكافة الفصول التابعة له بنجاح" });
     } catch (err) {
         res.status(500).json({ status: "error", message: err.message });
     }

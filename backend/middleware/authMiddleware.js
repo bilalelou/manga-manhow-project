@@ -55,4 +55,16 @@ const admin = (req, res, next) => {
     }
 };
 
-module.exports = { protect, admin };
+// Middleware for admin or translator authorization
+const adminOrTranslator = (req, res, next) => {
+    if (req.user && (req.user.role === "admin" || req.user.role === "translator")) {
+        next();
+    } else {
+        res.status(403).json({
+            status: "error",
+            message: "غير مصرح، يتطلب صلاحيات مدير أو مترجم"
+        });
+    }
+};
+
+module.exports = { protect, admin, adminOrTranslator };

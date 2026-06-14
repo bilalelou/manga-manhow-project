@@ -66,6 +66,16 @@ export default function NavbarUserMenu() {
                     </div>
                     <div className={styles.dropdownDivider} />
                     
+                    {(user.role === "admin" || user.role === "translator") && (
+                        <>
+                            <Link href="/admin" className={styles.dropdownItem} onClick={() => setIsOpen(false)}>
+                                <span>🛠️</span>
+                                <span>لوحة التحكم</span>
+                            </Link>
+                            <div className={styles.dropdownDivider} />
+                        </>
+                    )}
+                    
                     <Link href="/bookmarks" className={styles.dropdownItem} onClick={() => setIsOpen(false)}>
                         <span>❤️</span>
                         <span>مفضلتي والتقدم</span>
