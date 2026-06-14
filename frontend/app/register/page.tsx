@@ -14,7 +14,6 @@ function RegisterContent() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
-    const [secretKey, setSecretKey] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
 
@@ -53,7 +52,7 @@ function RegisterContent() {
 
         setSubmitting(true);
         try {
-            const res = await register(username, email, password, secretKey);
+            const res = await register(username, email, password);
             if (res.success) {
                 router.push(redirect);
             } else {
@@ -165,22 +164,7 @@ function RegisterContent() {
                         </div>
                     </div>
 
-                    <div className={styles.group}>
-                        <label className={styles.label} htmlFor="secretKey">
-                            رمز تسجيل الصلاحيات (اختياري)
-                        </label>
-                        <div className={styles.inputWrapper}>
-                            <input
-                                id="secretKey"
-                                type="password"
-                                placeholder="رمز المشرفين / المترجمين الخاص"
-                                className={styles.input}
-                                value={secretKey}
-                                onChange={(e) => setSecretKey(e.target.value)}
-                                disabled={submitting}
-                            />
-                        </div>
-                    </div>
+
 
                     <button type="submit" className={styles.button} disabled={submitting}>
                         {submitting ? "جاري إنشاء الحساب..." : "إنشاء حساب"}

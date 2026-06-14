@@ -6,6 +6,8 @@ const connectDB = require("./config/db");
 // Load environment variables
 dotenv.config();
 
+const path = require("path");
+
 // Initialize Express app
 const app = express();
 
@@ -20,11 +22,15 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Serve Static Uploaded Files
+app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
+
 // Mount Routes
 app.use("/api/mangas", require("./routes/mangaRoutes"));
 app.use("/api/chapters", require("./routes/chapterRoutes"));
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/users", require("./routes/userRoutes"));
+app.use("/api/upload", require("./routes/uploadRoutes"));
 
 // Test health route
 app.get("/api/health", (req, res) => {

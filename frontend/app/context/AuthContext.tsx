@@ -30,7 +30,7 @@ interface AuthContextType {
     loading: boolean;
     bookmarks: Bookmark[];
     login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
-    register: (username: string, email: string, password: string, secretKey?: string) => Promise<{ success: boolean; message?: string }>;
+    register: (username: string, email: string, password: string) => Promise<{ success: boolean; message?: string }>;
     logout: () => void;
     toggleBookmark: (mangaId: string) => Promise<boolean>;
     addHistory: (mangaId: string, chapterNumber: number) => Promise<void>;
@@ -110,12 +110,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     // Register user
-    const register = async (username: string, email: string, password: string, secretKey?: string) => {
+    const register = async (username: string, email: string, password: string) => {
         try {
             const res = await fetch(`${API_URL}/auth/register`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username, email, password, secretKey }),
+                body: JSON.stringify({ username, email, password }),
             });
             const data = await res.json();
             if (data.status === "success") {

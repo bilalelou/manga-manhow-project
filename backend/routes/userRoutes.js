@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const User = require("../models/User");
 const Manga = require("../models/Manga");
-const { protect } = require("../middleware/authMiddleware");
+const { protect, admin } = require("../middleware/authMiddleware");
 
 // @desc    Get user bookmarks
 // @route   GET /api/users/bookmarks
@@ -147,6 +147,67 @@ router.get("/history", protect, async (req, res, next) => {
         res.status(200).json({
             status: "success",
             data: user.history
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// @desc    Get all users list
+// @route   GET /api/users
+// @access  Private/Admin
+router.get("/", protect, admin, async (req, res, next) => {
+    try {
+        const users = await User.find({}).select("-password").sort({ createdAt: -1 });
+        res.status(200).json({
+            status: "success",
+            data: users
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// @desc    Update user role
+// @route   PUT /api/users/:id/role
+// @access  Private/Admin
+router.put("/:id/role", protect, admin, async (req, res, next) => {
+    try {
+        const { role } = req.body;
+        if (!["user", "admin", "translator"].includes(role)) {
+            return res.status(400).json({
+                status: "error",
+                message: "نوع الحساب غير صالح"
+            });
+        }
+
+        const targetUser = await User.findById(req.params.id);
+        if (!targetUser) {
+            return res.status(404).json({
+                status: "error",
+                message: "المستخدم غير موجود"
+            });
+        }
+
+        // Prevent self demotion
+        if (targetUser._id.toString() === req.user._id.toString() && role !== "admin") {
+            return res.status(400).json({
+                status: "error",
+                message: "لا يمكنك سحب صلاحيات المسؤول من حسابك الخاص بنفسك"
+            });
+        }
+
+        targetUser.role = role;
+        await targetUser.save();
+
+        res.status(200).json({
+            status: "success",
+            data: {
+                _id: targetUser._id,
+                username: targetUser.username,
+                email: targetUser.email,
+                role: targetUser.role
+            }
         });
     } catch (error) {
         next(error);

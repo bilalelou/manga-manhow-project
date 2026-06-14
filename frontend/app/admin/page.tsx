@@ -33,6 +33,14 @@ interface ChapterType {
     createdAt: string;
 }
 
+interface UserListType {
+    _id: string;
+    username: string;
+    email: string;
+    role: "user" | "translator" | "admin";
+    createdAt: string;
+}
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
 const KNOWN_GENRES = [
@@ -46,7 +54,7 @@ export default function AdminDashboard() {
     const router = useRouter();
 
     // UI Tab State
-    const [activeTab, setActiveTab] = useState<"mangas" | "add-chapter" | "manage-chapters">("mangas");
+    const [activeTab, setActiveTab] = useState<"mangas" | "add-chapter" | "manage-chapters" | "users">("mangas");
 
     // General States
     const [mangas, setMangas] = useState<MangaType[]>([]);
@@ -69,6 +77,7 @@ export default function AdminDashboard() {
     const [mangaFeatured, setMangaFeatured] = useState(false);
     const [mangaSubmitting, setMangaSubmitting] = useState(false);
     const [showMangaForm, setShowMangaForm] = useState(false);
+    const [uploadingCover, setUploadingCover] = useState(false);
 
     // Form: Chapter State
     const [chapterMangaId, setChapterMangaId] = useState("");
@@ -76,14 +85,21 @@ export default function AdminDashboard() {
     const [chapterTitle, setChapterTitle] = useState("");
     const [chapterPagesText, setChapterPagesText] = useState("");
     const [chapterSubmitting, setChapterSubmitting] = useState(false);
+    const [uploadingPages, setUploadingPages] = useState(false);
 
     // Form: Manage Chapters State
     const [selectedMangaForChapters, setSelectedMangaForChapters] = useState("");
     const [chaptersList, setChaptersList] = useState<ChapterType[]>([]);
     const [loadingChapters, setLoadingChapters] = useState(false);
 
-    // Search filter for mangas
+    // Form: Manage Users State
+    const [usersList, setUsersList] = useState<UserListType[]>([]);
+    const [loadingUsers, setLoadingUsers] = useState(false);
+    const [updatingUserRoleId, setUpdatingUserRoleId] = useState<string | null>(null);
+
+    // Search filter
     const [mangaSearchQuery, setMangaSearchQuery] = useState("");
+    const [userSearchQuery, setUserSearchQuery] = useState("");
 
     // Access control redirect
     useEffect(() => {
@@ -108,11 +124,35 @@ export default function AdminDashboard() {
         }
     };
 
+    // Load users (Admin only)
+    const fetchUsers = async () => {
+        if (!token || user?.role !== "admin") return;
+        setLoadingUsers(true);
+        try {
+            const res = await fetch(`${API_URL}/users`, {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
+            const data = await res.json();
+            if (data.status === "success") {
+                setUsersList(data.data);
+            }
+        } catch (err) {
+            console.error("Failed to fetch users list:", err);
+        } finally {
+            setLoadingUsers(false);
+        }
+    };
+
     useEffect(() => {
         if (user && (user.role === "admin" || user.role === "translator")) {
             fetchMangas();
         }
-    }, [user]);
+        if (user && user.role === "admin" && activeTab === "users") {
+            fetchUsers();
+        }
+    }, [user, activeTab]);
 
     // Fetch chapters for management tab
     const fetchChaptersForManga = async (mangaSlug: string) => {
@@ -145,14 +185,81 @@ export default function AdminDashboard() {
         }
     }, [selectedMangaForChapters, mangas]);
 
-    // Clear alert helper
+    // Alert helper
     const triggerAlert = (type: "success" | "error", message: string) => {
         setAlert({ type, message });
         window.scrollTo({ top: 0, behavior: "smooth" });
         setTimeout(() => setAlert(null), 5000);
     };
 
-    // Open Add Manga form
+    // File Upload: Single Image (Manga Cover)
+    const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploadingCover(true);
+        const formData = new FormData();
+        formData.append("image", file);
+
+        try {
+            const res = await fetch(`${API_URL}/upload/single`, {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`
+                },
+                body: formData
+            });
+            const data = await res.json();
+            if (data.status === "success") {
+                setMangaCover(data.url);
+                triggerAlert("success", "تم رفع الغلاف بنجاح!");
+            } else {
+                triggerAlert("error", data.message || "فشل رفع الصورة");
+            }
+        } catch (err) {
+            triggerAlert("error", "حدث خطأ أثناء محاولة رفع الغلاف");
+        } finally {
+            setUploadingCover(false);
+        }
+    };
+
+    // File Upload: Multiple Images (Chapter Pages)
+    const handlePagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+
+        setUploadingPages(true);
+        const formData = new FormData();
+        // Append all files to the "images" field
+        for (let i = 0; i < files.length; i++) {
+            formData.append("images", files[i]);
+        }
+
+        try {
+            const res = await fetch(`${API_URL}/upload/multiple`, {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`
+                },
+                body: formData
+            });
+            const data = await res.json();
+            if (data.status === "success") {
+                // Return local paths as newline-separated strings
+                const localUrls = data.urls.join("\n");
+                setChapterPagesText(prev => prev ? `${prev}\n${localUrls}` : localUrls);
+                triggerAlert("success", `تم رفع ${files.length} صفحات بنجاح!`);
+            } else {
+                triggerAlert("error", data.message || "فشل رفع الصفحات");
+            }
+        } catch (err) {
+            triggerAlert("error", "حدث خطأ أثناء رفع صفحات الفصل");
+        } finally {
+            setUploadingPages(false);
+        }
+    };
+
+    // Open Add Manga
     const handleOpenAddManga = () => {
         setEditingMangaId(null);
         setMangaTitle("");
@@ -170,7 +277,7 @@ export default function AdminDashboard() {
         setShowMangaForm(true);
     };
 
-    // Open Edit Manga form
+    // Open Edit Manga
     const handleOpenEditManga = (m: MangaType) => {
         setEditingMangaId(m._id);
         setMangaTitle(m.title);
@@ -189,7 +296,7 @@ export default function AdminDashboard() {
         window.scrollTo({ top: 0, behavior: "smooth" });
     };
 
-    // Handle Genre toggle
+    // Genre Checkbox Handler
     const handleGenreChange = (genre: string) => {
         if (selectedGenres.includes(genre)) {
             setSelectedGenres(selectedGenres.filter(g => g !== genre));
@@ -198,11 +305,11 @@ export default function AdminDashboard() {
         }
     };
 
-    // Manga form submission
+    // Manga Save
     const handleMangaSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!mangaTitle) {
-            triggerAlert("error", "عنوان العمل الإنجليزي مطلوب");
+            triggerAlert("error", "عنوان العمل بالإنجليزية مطلوب");
             return;
         }
 
@@ -237,14 +344,14 @@ export default function AdminDashboard() {
 
             const data = await res.json();
             if (data.status === "success") {
-                triggerAlert("success", editingMangaId ? "تم تعديل بيانات العمل بنجاح" : "تم إضافة العمل الجديد بنجاح");
+                triggerAlert("success", editingMangaId ? "تم تعديل العمل بنجاح" : "تم إضافة العمل بنجاح");
                 setShowMangaForm(false);
                 fetchMangas();
             } else {
-                triggerAlert("error", data.message || "حدث خطأ أثناء حفظ العمل");
+                triggerAlert("error", data.message || "حدث خطأ أثناء الحفظ");
             }
         } catch (err) {
-            triggerAlert("error", "تعذر الاتصال بالسيرفر لحفظ العمل");
+            triggerAlert("error", "حدث خطأ أثناء الاتصال بالسيرفر");
         } finally {
             setMangaSubmitting(false);
         }
@@ -252,7 +359,7 @@ export default function AdminDashboard() {
 
     // Delete Manga
     const handleDeleteManga = async (mangaId: string, mangaTitle: string) => {
-        if (!confirm(`هل أنت متأكد من حذف العمل "${mangaTitle}" بالكامل مع جميع الفصول المرتبطة به؟ لا يمكن التراجع عن هذا الإجراء.`)) {
+        if (!confirm(`هل أنت متأكد من حذف العمل "${mangaTitle}" بالكامل مع فصوله؟`)) {
             return;
         }
 
@@ -266,17 +373,17 @@ export default function AdminDashboard() {
 
             const data = await res.json();
             if (data.status === "success") {
-                triggerAlert("success", "تم حذف العمل وكافة فصوله التابعة بنجاح");
+                triggerAlert("success", "تم حذف العمل وكافة فصوله التابعة له");
                 fetchMangas();
             } else {
                 triggerAlert("error", data.message || "فشل حذف العمل");
             }
         } catch (err) {
-            triggerAlert("error", "حدث خطأ أثناء محاولة الاتصال بالسيرفر لحذف العمل");
+            triggerAlert("error", "حدث خطأ أثناء الاتصال بالخادم لحذف العمل");
         }
     };
 
-    // Chapter form submission
+    // Chapter Save
     const handleChapterSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!chapterMangaId) {
@@ -284,17 +391,16 @@ export default function AdminDashboard() {
             return;
         }
         if (!chapterNumber) {
-            triggerAlert("error", "يرجى إدخال رقم الفصل");
+            triggerAlert("error", "رقم الفصل مطلوب");
             return;
         }
         if (!chapterPagesText.trim()) {
-            triggerAlert("error", "يرجى إدخال روابط صفحات الفصل");
+            triggerAlert("error", "يرجى لصق أو رفع روابط الصفحات");
             return;
         }
 
         setChapterSubmitting(true);
         try {
-            // Process pages from line-by-line urls
             const urls = chapterPagesText.split("\n").map(l => l.trim()).filter(Boolean);
             const formattedPages = urls.map((url, index) => ({
                 pageNumber: index + 1,
@@ -319,16 +425,15 @@ export default function AdminDashboard() {
 
             const data = await res.json();
             if (data.status === "success") {
-                triggerAlert("success", `تم إضافة الفصل رقم ${chapterNumber} بنجاح`);
-                // Reset form
+                triggerAlert("success", `تم إضافة الفصل رقم ${chapterNumber} بنجاح!`);
                 setChapterNumber("");
                 setChapterTitle("");
                 setChapterPagesText("");
             } else {
-                triggerAlert("error", data.message || "فشل إضافة الفصل");
+                triggerAlert("error", data.message || "فشل رفع الفصل");
             }
         } catch (err) {
-            triggerAlert("error", "تعذر الاتصال بالخادم لإضافة الفصل");
+            triggerAlert("error", "حدث خطأ أثناء الاتصال بالخادم لحفظ الفصل");
         } finally {
             setChapterSubmitting(false);
         }
@@ -336,7 +441,7 @@ export default function AdminDashboard() {
 
     // Delete Chapter
     const handleDeleteChapter = async (chapterId: string, chapNum: number) => {
-        if (!confirm(`هل أنت متأكد من حذف الفصل رقم ${chapNum}؟ لا يمكن التراجع عن هذا الإجراء.`)) {
+        if (!confirm(`هل تريد بالتأكيد حذف الفصل رقم ${chapNum}؟`)) {
             return;
         }
 
@@ -360,17 +465,52 @@ export default function AdminDashboard() {
                 triggerAlert("error", data.message || "فشل حذف الفصل");
             }
         } catch (err) {
-            triggerAlert("error", "تعذر الاتصال بالخادم لحذف الفصل");
+            triggerAlert("error", "حدث خطأ أثناء الاتصال بالخادم لحذف الفصل");
         }
     };
 
-    // Filtered mangas list based on search
+    // Update User Role (Admin only)
+    const handleUpdateUserRole = async (userId: string, username: string, newRole: "user" | "translator" | "admin") => {
+        if (!confirm(`هل أنت متأكد من تغيير دور العضو "${username}" إلى "${newRole === "admin" ? "مسؤول" : newRole === "translator" ? "مترجم" : "عضو عادي"}"؟`)) {
+            return;
+        }
+
+        setUpdatingUserRoleId(userId);
+        try {
+            const res = await fetch(`${API_URL}/users/${userId}/role`, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({ role: newRole })
+            });
+
+            const data = await res.json();
+            if (data.status === "success") {
+                triggerAlert("success", `تم تحديث دور "${username}" بنجاح!`);
+                fetchUsers();
+            } else {
+                triggerAlert("error", data.message || "فشل تعديل الصلاحيات");
+            }
+        } catch (err) {
+            triggerAlert("error", "حدث خطأ أثناء الاتصال بالخادم لتحديث الصلاحيات");
+        } finally {
+            setUpdatingUserRoleId(null);
+        }
+    };
+
+    // Search filters
     const filteredMangas = mangas.filter(m => 
         m.title.toLowerCase().includes(mangaSearchQuery.toLowerCase()) ||
         (m.titleAr && m.titleAr.includes(mangaSearchQuery))
     );
 
-    // Guard UI if loading or not permitted
+    const filteredUsers = usersList.filter(u => 
+        u.username.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+        u.email.toLowerCase().includes(userSearchQuery.toLowerCase())
+    );
+
     if (loading) {
         return (
             <div className={styles.wrapper} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -380,12 +520,12 @@ export default function AdminDashboard() {
     }
 
     if (!user || (user.role !== "admin" && user.role !== "translator")) {
-        return null; // Will redirect in useEffect
+        return null;
     }
 
     return (
         <div className={styles.wrapper}>
-            {/* Navigation Header */}
+            {/* Navbar */}
             <nav className={styles.navbar}>
                 <div className={`container ${styles.navInner}`}>
                     <a href="/" className={styles.logo}>
@@ -402,13 +542,13 @@ export default function AdminDashboard() {
             </nav>
 
             <div className={styles.container}>
-                {/* Header title */}
+                {/* Header */}
                 <div className={styles.header}>
                     <h1 className={styles.title}>لوحة تحكم المشرفين والمترجمين</h1>
                     <p className={styles.subtitle}>أهلاً بك {user.username}، يمكنك إدارة الأعمال والترجمات وفصول المانجا من هنا.</p>
                 </div>
 
-                {/* Status Alert */}
+                {/* Alerts */}
                 {alert && (
                     <div className={`${styles.alert} ${alert.type === "success" ? styles.alertSuccess : styles.alertError}`}>
                         <span>{alert.type === "success" ? "✅" : "⚠️"}</span>
@@ -416,7 +556,7 @@ export default function AdminDashboard() {
                     </div>
                 )}
 
-                {/* Tab Navigation */}
+                {/* Tab buttons */}
                 <div className={styles.tabs}>
                     <button
                         className={`${styles.tabBtn} ${activeTab === "mangas" ? styles.tabBtnActive : ""}`}
@@ -436,12 +576,19 @@ export default function AdminDashboard() {
                     >
                         ⚙️ إدارة الفصول وحذفها
                     </button>
+                    {user.role === "admin" && (
+                        <button
+                            className={`${styles.tabBtn} ${activeTab === "users" ? styles.tabBtnActive : ""}`}
+                            onClick={() => { setActiveTab("users"); setShowMangaForm(false); }}
+                        >
+                            👥 إدارة صلاحيات الأعضاء
+                        </button>
+                    )}
                 </div>
 
-                {/* TAB CONTENT: MANAGE MANGAS */}
+                {/* TAB CONTENT: MANGAS LIST */}
                 {activeTab === "mangas" && (
                     <div>
-                        {/* Manga Edit / Add Form (Inline overlay) */}
                         {showMangaForm && (
                             <div className={styles.card}>
                                 <div className={styles.modalHeader}>
@@ -475,14 +622,34 @@ export default function AdminDashboard() {
                                             />
                                         </div>
                                         <div className={styles.formGroup}>
-                                            <label className={styles.label}>رابط غلاف العمل (URL)</label>
+                                            <label className={styles.label}>رابط غلاف العمل (أو ارفعه أدناه)</label>
                                             <input
-                                                type="url"
+                                                type="text"
                                                 className={styles.input}
                                                 placeholder="http://example.com/cover.jpg"
                                                 value={mangaCover}
                                                 onChange={(e) => setMangaCover(e.target.value)}
                                             />
+                                        </div>
+                                        <div className={styles.formGroup}>
+                                            <label className={styles.label}>رفع صورة غلاف محلي</label>
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleCoverUpload}
+                                                className={styles.input}
+                                                style={{ display: 'none' }}
+                                                id="cover-upload-file"
+                                            />
+                                            <label htmlFor="cover-upload-file" className={`${styles.btn} ${styles.btnOutline}`} style={{ cursor: 'pointer', display: 'flex', gap: '8px' }}>
+                                                📂 {uploadingCover ? "جاري رفع الغلاف..." : "اختر ملف الغلاف"}
+                                            </label>
+                                            {mangaCover && (
+                                                <div style={{ marginTop: '8px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                    <img src={mangaCover} alt="Cover Preview" style={{ width: '40px', height: '50px', objectFit: 'cover', borderRadius: '4px' }} />
+                                                    <span style={{ fontSize: '11px', color: '#00c850' }}>تم تجهيز الغلاف للمانجا</span>
+                                                </div>
+                                            )}
                                         </div>
                                         <div className={styles.formGroup}>
                                             <label className={styles.label}>نوع العمل</label>
@@ -612,7 +779,7 @@ export default function AdminDashboard() {
                             </div>
                         )}
 
-                        {/* List & Search */}
+                        {/* Search & Actions */}
                         <div className={styles.card}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                                 <div style={{ display: 'flex', gap: '0.5rem', flex: 1, maxWidth: '400px' }}>
@@ -631,11 +798,11 @@ export default function AdminDashboard() {
                             </div>
 
                             {loadingMangas ? (
-                                <div style={{ textAlign: 'center', padding: '2rem 0' }}>جاري تحميل قائمة الأعمال...</div>
+                                <div style={{ textAlign: 'center', padding: '2rem 0' }}>جاري تحميل الأعمال...</div>
                             ) : filteredMangas.length === 0 ? (
                                 <div className={styles.emptyState}>
                                     <div className={styles.emptyIcon}>🔍</div>
-                                    <p>لم يتم العثور على أي أعمال مطابقة للبحث.</p>
+                                    <p>لم يتم العثور على أي مانجا مطابقة.</p>
                                 </div>
                             ) : (
                                 <div className={styles.tableContainer}>
@@ -739,14 +906,31 @@ export default function AdminDashboard() {
                                         onChange={(e) => setChapterTitle(e.target.value)}
                                     />
                                 </div>
+                                
+                                <div className={styles.formGroupFull}>
+                                    <label className={styles.label}>رفع صور الفصل محلياً دفعة واحدة</label>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        multiple
+                                        onChange={handlePagesUpload}
+                                        className={styles.input}
+                                        style={{ display: 'none' }}
+                                        id="pages-upload-files"
+                                    />
+                                    <label htmlFor="pages-upload-files" className={`${styles.btn} ${styles.btnOutline}`} style={{ cursor: 'pointer', display: 'flex', gap: '8px', width: 'fit-content' }}>
+                                        📂 {uploadingPages ? "جاري رفع صور الصفحات..." : "اختر صور الفصل لرفعها بالكامل"}
+                                    </label>
+                                </div>
+
                                 <div className={styles.formGroupFull}>
                                     <label className={styles.label}>روابط صفحات الفصل (رابط واحد في كل سطر) *</label>
                                     <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '4px' }}>
-                                        قم بنسخ روابط الصور ولصقها هنا مباشرة. سطر واحد لكل صفحة بالترتيب.
+                                        عند اختيار ورفع الصور محلياً، سيتم توليد الروابط هنا تلقائياً، أو يمكنك كتابة/لصق روابط خارجية مباشرة.
                                     </p>
                                     <textarea
                                         className={`${styles.textarea} ${styles.textareaPages}`}
-                                        placeholder="https://example.com/page1.jpg&#10;https://example.com/page2.jpg&#10;https://example.com/page3.jpg"
+                                        placeholder="https://example.com/page1.jpg&#10;https://example.com/page2.jpg"
                                         value={chapterPagesText}
                                         onChange={(e) => setChapterPagesText(e.target.value)}
                                         required
@@ -757,9 +941,9 @@ export default function AdminDashboard() {
                                 <button
                                     type="submit"
                                     className={`${styles.btn} ${styles.btnPrimary}`}
-                                    disabled={chapterSubmitting}
+                                    disabled={chapterSubmitting || uploadingPages}
                                 >
-                                    {chapterSubmitting ? "جاري رفع الفصل..." : "رفع وإضافة الفصل"}
+                                    {chapterSubmitting ? "جاري حفظ الفصل..." : "رفع وحفظ الفصل"}
                                 </button>
                             </div>
                         </form>
@@ -822,6 +1006,72 @@ export default function AdminDashboard() {
                                         </div>
                                     ))}
                                 </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* TAB CONTENT: MANAGE USERS (Admin Only) */}
+                {activeTab === "users" && user.role === "admin" && (
+                    <div className={styles.card}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                            <h3 className={styles.formSectionTitle} style={{ margin: 0 }}>إدارة صلاحيات ورتب الأعضاء</h3>
+                            <div style={{ display: 'flex', gap: '0.5rem', flex: 1, maxWidth: '300px' }}>
+                                <input
+                                    type="text"
+                                    placeholder="ابحث عن عضو (الاسم/البريد)..."
+                                    className={styles.input}
+                                    style={{ width: '100%' }}
+                                    value={userSearchQuery}
+                                    onChange={(e) => setUserSearchQuery(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        {loadingUsers ? (
+                            <div style={{ textAlign: 'center', padding: '2rem 0' }}>جاري تحميل قائمة الأعضاء...</div>
+                        ) : filteredUsers.length === 0 ? (
+                            <div className={styles.emptyState}>
+                                <div className={styles.emptyIcon}>👥</div>
+                                <p>لم يتم العثور على مستخدمين مطابقتين للبحث.</p>
+                            </div>
+                        ) : (
+                            <div className={styles.tableContainer}>
+                                <table className={styles.table}>
+                                    <thead>
+                                        <tr>
+                                            <th className={styles.th}>اسم العضو</th>
+                                            <th className={styles.th}>البريد الإلكتروني</th>
+                                            <th className={styles.th}>تاريخ الانضمام</th>
+                                            <th className={styles.th}>نوع الحساب (الصلاحية)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredUsers.map((u) => (
+                                            <tr key={u._id}>
+                                                <td className={styles.td} style={{ fontWeight: 700 }}>
+                                                    {u.username} {u._id === user._id && <span style={{ color: 'var(--color-accent)', fontSize: '11px' }}>(أنت)</span>}
+                                                </td>
+                                                <td className={styles.td} style={{ color: 'var(--color-text-secondary)' }}>{u.email}</td>
+                                                <td className={styles.td} style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>
+                                                    {new Date(u.createdAt).toLocaleDateString("ar-EG")}
+                                                </td>
+                                                <td className={styles.td}>
+                                                    <select
+                                                        className={styles.select}
+                                                        value={u.role}
+                                                        onChange={(e) => handleUpdateUserRole(u._id, u.username, e.target.value as any)}
+                                                        disabled={updatingUserRoleId === u._id || u._id === user._id}
+                                                    >
+                                                        <option value="user">عضو عادي (User)</option>
+                                                        <option value="translator">مترجم (Translator)</option>
+                                                        <option value="admin">مسؤول / مدير (Admin)</option>
+                                                    </select>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         )}
                     </div>

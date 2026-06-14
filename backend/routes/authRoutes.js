@@ -17,7 +17,7 @@ const generateToken = (id) => {
 // @access  Public
 router.post("/register", async (req, res, next) => {
     try {
-                const { username, email, password, secretKey } = req.body;
+        const { username, email, password } = req.body;
 
         if (!username || !email || !password) {
             return res.status(400).json({
@@ -39,20 +39,11 @@ router.post("/register", async (req, res, next) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        // Determine role based on secret key
-        let role = "user";
-        if (secretKey === "mangaverse-admin-2026") {
-            role = "admin";
-        } else if (secretKey === "mangaverse-translator-2026") {
-            role = "translator";
-        }
-
-        // Create user
+        // Create user (defaults to role: "user")
         const user = await User.create({
             username,
             email,
             password: hashedPassword,
-            role,
         });
 
         if (user) {
