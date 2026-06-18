@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
+import LogoIcon from "@/app/components/LogoIcon";
 import styles from "./admin.module.css";
 
 // Interface definitions
@@ -529,7 +530,7 @@ export default function AdminDashboard() {
             <nav className={styles.navbar}>
                 <div className={`container ${styles.navInner}`}>
                     <a href="/" className={styles.logo}>
-                        <span className={styles.logoIcon}>⛩️</span>
+                        <LogoIcon className={styles.logoIcon} />
                         <span className={styles.logoText}>MangaVerse</span>
                     </a>
                     <div className={styles.navActions}>

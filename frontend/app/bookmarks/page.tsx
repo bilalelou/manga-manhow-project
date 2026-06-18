@@ -4,7 +4,8 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
-import NavbarUserMenu from "@/app/components/NavbarUserMenu";
+import Navbar from "@/app/components/Navbar";
+import { HeartIcon, BookOpenIcon, CalendarIcon } from "@/app/components/Icons";
 import styles from "./bookmarks.module.css";
 
 interface HistoryItem {
@@ -93,21 +94,7 @@ export default function BookmarksPage() {
     return (
         <div className={styles.wrapper}>
             {/* NAVBAR */}
-            <nav className={styles.navbar}>
-                <div className={`container ${styles.navInner}`}>
-                    <a href="/" className={styles.logo}>
-                        <span className={styles.logoIcon}>⛩️</span>
-                        <span className={styles.logoText}>MangaVerse</span>
-                    </a>
-                    <div className={styles.navLinks}>
-                        <a href="/" className={styles.navLink}>الرئيسية</a>
-                        <a href="/browse" className={styles.navLink}>التصفح</a>
-                    </div>
-                    <div className={styles.navActions}>
-                        <NavbarUserMenu />
-                    </div>
-                </div>
-            </nav>
+            <Navbar showSearch={false} />
 
             <main className="container" style={{ marginTop: "30px", flex: 1 }}>
                 {/* BREADCRUMB */}
@@ -127,14 +114,21 @@ export default function BookmarksPage() {
                     <button
                         className={`${styles.tab} ${activeTab === "bookmarks" ? styles.tabActive : ""}`}
                         onClick={() => setActiveTab("bookmarks")}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                     >
-                        ❤️ مفضلتي ({bookmarks.length})
+                        <HeartIcon size={14} fill={activeTab === "bookmarks" ? "#e94560" : "none"} style={{ color: activeTab === "bookmarks" ? "#e94560" : "currentColor" }} />
+                        <span>مفضلتي ({bookmarks.length})</span>
                     </button>
                     <button
                         className={`${styles.tab} ${activeTab === "history" ? styles.tabActive : ""}`}
                         onClick={() => setActiveTab("history")}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                     >
-                        ⏳ سجل القراءة
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: "inline-block", verticalAlign: "middle" }}>
+                            <circle cx="12" cy="12" r="10" />
+                            <polyline points="12 6 12 12 16 14" />
+                        </svg>
+                        <span>سجل القراءة</span>
                     </button>
                 </div>
 
@@ -171,7 +165,7 @@ export default function BookmarksPage() {
                         </div>
                     ) : (
                         <div className={styles.emptyState}>
-                            <span className={styles.emptyIcon}>🤍</span>
+                            <HeartIcon size={48} style={{ color: "rgba(255, 255, 255, 0.15)", marginBottom: "15px" }} />
                             <h3 className={styles.emptyTitle}>قائمة المفضلة فارغة</h3>
                             <p className={styles.emptyDesc}>
                                 تصفح المانجا والمانهوا المتاحة وقم بإضافتها لمفضلتك للوصول السريع إليها لاحقاً.
@@ -210,8 +204,8 @@ export default function BookmarksPage() {
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className={styles.historyTime}>
-                                            <span>📅</span>
+                                        <div className={styles.historyTime} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                            <CalendarIcon size={12} />
                                             <span>{formatTime(item.readAt)}</span>
                                         </div>
                                     </div>
@@ -220,7 +214,7 @@ export default function BookmarksPage() {
                         </div>
                     ) : (
                         <div className={styles.emptyState}>
-                            <span className={styles.emptyIcon}>📖</span>
+                            <BookOpenIcon size={48} style={{ color: "rgba(255, 255, 255, 0.15)", marginBottom: "15px" }} />
                             <h3 className={styles.emptyTitle}>لا يوجد سجل قراءة</h3>
                             <p className={styles.emptyDesc}>
                                 ابدأ بقراءة فصول المانجا وسيتم تسجيل الفصول التي تقرأها هنا تلقائياً لسهولة الرجوع لها.

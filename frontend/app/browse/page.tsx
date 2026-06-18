@@ -3,7 +3,8 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import styles from "./browse.module.css";
-import NavbarUserMenu from "@/app/components/NavbarUserMenu";
+import Navbar from "@/app/components/Navbar";
+import LogoIcon from "@/app/components/LogoIcon";
 
 // Interface definitions for TypeScript safety
 interface MangaType {
@@ -171,6 +172,7 @@ function BrowseContent() {
     const initialStatus = searchParams.get("status") || "";
     const initialGenre = searchParams.get("genre") || "";
     const initialSort = searchParams.get("sort") || "latest";
+    const initialPage = parseInt(searchParams.get("page") || "1");
 
     // Component State
     const [searchVal, setSearchVal] = useState(initialQuery);
@@ -178,10 +180,17 @@ function BrowseContent() {
     const [selectedStatus, setSelectedStatus] = useState(initialStatus);
     const [selectedGenre, setSelectedGenre] = useState(initialGenre);
     const [selectedSort, setSelectedSort] = useState(initialSort);
+    const [currentPage, setCurrentPage] = useState(initialPage);
+    const [totalPages, setTotalPages] = useState(1);
 
     const [mangas, setMangas] = useState<MangaType[]>([]);
     const [loading, setLoading] = useState(true);
     const [isConnected, setIsConnected] = useState(true);
+
+    // Scroll to top on page change
+    useEffect(() => {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }, [currentPage]);
 
     // Sync URL when filters change
     useEffect(() => {
@@ -191,11 +200,12 @@ function BrowseContent() {
         if (selectedStatus) params.set("status", selectedStatus);
         if (selectedGenre) params.set("genre", selectedGenre);
         if (selectedSort !== "latest") params.set("sort", selectedSort);
+        if (currentPage > 1) params.set("page", currentPage.toString());
 
         const queryString = params.toString();
         const newUrl = `/browse${queryString ? "?" + queryString : ""}`;
         window.history.replaceState(null, "", newUrl);
-    }, [searchVal, selectedType, selectedStatus, selectedGenre, selectedSort]);
+    }, [searchVal, selectedType, selectedStatus, selectedGenre, selectedSort, currentPage]);
 
     // Fetch matching mangas from API or fallback locally
     useEffect(() => {
@@ -208,6 +218,8 @@ function BrowseContent() {
                 if (selectedStatus) queryParams.set("status", selectedStatus);
                 if (selectedGenre) queryParams.set("genre", selectedGenre);
                 if (selectedSort) queryParams.set("sort", selectedSort);
+                queryParams.set("page", currentPage.toString());
+                queryParams.set("limit", "4");
 
                 const res = await fetch(`${API_URL}/mangas?${queryParams.toString()}`, {
                     cache: "no-store"
@@ -216,6 +228,7 @@ function BrowseContent() {
                 if (!res.ok) throw new Error("API responded with error");
                 const json = await res.json();
                 setMangas(json.data || []);
+                setTotalPages(json.pagination?.totalPages || 1);
                 setIsConnected(!json.isFallback);
             } catch (err) {
                 console.warn("⚠️ API fetch failed on browse page, falling back to local filtering:", err);
@@ -256,6 +269,13 @@ function BrowseContent() {
                     });
                 }
 
+                const totalItems = data.length;
+                const limitVal = 4;
+                setTotalPages(Math.ceil(totalItems / limitVal) || 1);
+
+                const skip = (currentPage - 1) * limitVal;
+                data = data.slice(skip, skip + limitVal);
+
                 setMangas(data);
             } finally {
                 setLoading(false);
@@ -263,7 +283,7 @@ function BrowseContent() {
         };
 
         fetchFilteredData();
-    }, [searchVal, selectedType, selectedStatus, selectedGenre, selectedSort]);
+    }, [searchVal, selectedType, selectedStatus, selectedGenre, selectedSort, currentPage]);
 
     const handleGenreToggle = (genre: string) => {
         if (selectedGenre === genre) {
@@ -271,6 +291,7 @@ function BrowseContent() {
         } else {
             setSelectedGenre(genre);
         }
+        setCurrentPage(1);
     };
 
     const handleResetFilters = () => {
@@ -279,6 +300,35 @@ function BrowseContent() {
         setSelectedStatus("");
         setSelectedGenre("");
         setSelectedSort("latest");
+        setCurrentPage(1);
+    };
+
+    // Helper for pagination rendering
+    const getPageNumbers = () => {
+        const pages = [];
+        const maxVisiblePages = 5;
+
+        if (totalPages <= maxVisiblePages) {
+            for (let i = 1; i <= totalPages; i++) {
+                pages.push(i);
+            }
+        } else {
+            pages.push(1);
+            const start = Math.max(2, currentPage - 1);
+            const end = Math.min(totalPages - 1, currentPage + 1);
+
+            if (start > 2) {
+                pages.push("...");
+            }
+            for (let i = start; i <= end; i++) {
+                pages.push(i);
+            }
+            if (end < totalPages - 1) {
+                pages.push("...");
+            }
+            pages.push(totalPages);
+        }
+        return pages;
     };
 
     return (
@@ -312,23 +362,7 @@ function BrowseContent() {
             </div>
 
             {/* NAVBAR */}
-            <nav className={styles.navbar}>
-                <div className={`container ${styles.navInner}`}>
-                    <a href="/" className={styles.logo}>
-                        <span className={styles.logoIcon}>⛩️</span>
-                        <span className={styles.logoText}>MangaVerse</span>
-                    </a>
-                    <div className={styles.navLinks}>
-                        <a href="/" className={styles.navLink}>الرئيسية</a>
-                        <a href="/browse" className={styles.navLink} style={{ color: "var(--color-accent)" }}>التصفح</a>
-                        <a href="/popular" className={styles.navLink}>الأكثر شعبية</a>
-                        <a href="/latest" className={styles.navLink}>آخر الإصدارات</a>
-                    </div>
-                    <div className={styles.navActions}>
-                        <NavbarUserMenu />
-                    </div>
-                </div>
-            </nav>
+            <Navbar showSearch={false} />
 
             <main className="container" style={{ flex: 1, display: "flex", flexDirection: "column" }}>
                 {/* BREADCRUMB */}
@@ -359,7 +393,7 @@ function BrowseContent() {
                                     type="text"
                                     placeholder="ابحث بالعربية أو الإنجليزية..."
                                     value={searchVal}
-                                    onChange={(e) => setSearchVal(e.target.value)}
+                                    onChange={(e) => { setSearchVal(e.target.value); setCurrentPage(1); }}
                                     className={styles.pageSearchInput}
                                     id="page-search-input"
                                 />
@@ -372,21 +406,21 @@ function BrowseContent() {
                             <div className={styles.tagGrid}>
                                 <button
                                     className={`${styles.filterTag} ${selectedType === "" ? styles.filterTagActive : ""}`}
-                                    onClick={() => setSelectedType("")}
+                                    onClick={() => { setSelectedType(""); setCurrentPage(1); }}
                                     id="filter-type-all"
                                 >
                                     الكل
                                 </button>
                                 <button
                                     className={`${styles.filterTag} ${selectedType === "manga" ? styles.filterTagActive : ""}`}
-                                    onClick={() => setSelectedType("manga")}
+                                    onClick={() => { setSelectedType("manga"); setCurrentPage(1); }}
                                     id="filter-type-manga"
                                 >
                                     مانجا (اليابان)
                                 </button>
                                 <button
                                     className={`${styles.filterTag} ${selectedType === "manhwa" ? styles.filterTagActive : ""}`}
-                                    onClick={() => setSelectedType("manhwa")}
+                                    onClick={() => { setSelectedType("manhwa"); setCurrentPage(1); }}
                                     id="filter-type-manhwa"
                                 >
                                     مانهوا (كوريا)
@@ -400,21 +434,21 @@ function BrowseContent() {
                             <div className={styles.tagGrid}>
                                 <button
                                     className={`${styles.filterTag} ${selectedStatus === "" ? styles.filterTagActive : ""}`}
-                                    onClick={() => setSelectedStatus("")}
+                                    onClick={() => { setSelectedStatus(""); setCurrentPage(1); }}
                                     id="filter-status-all"
                                 >
                                     الكل
                                 </button>
                                 <button
                                     className={`${styles.filterTag} ${selectedStatus === "ongoing" ? styles.filterTagActive : ""}`}
-                                    onClick={() => setSelectedStatus("ongoing")}
+                                    onClick={() => { setSelectedStatus("ongoing"); setCurrentPage(1); }}
                                     id="filter-status-ongoing"
                                 >
                                     مستمر
                                 </button>
                                 <button
                                     className={`${styles.filterTag} ${selectedStatus === "completed" ? styles.filterTagActive : ""}`}
-                                    onClick={() => setSelectedStatus("completed")}
+                                    onClick={() => { setSelectedStatus("completed"); setCurrentPage(1); }}
                                     id="filter-status-completed"
                                 >
                                     مكتمل
@@ -444,7 +478,7 @@ function BrowseContent() {
                             <label className={styles.filterLabel}>الترتيب حسب</label>
                             <select
                                 value={selectedSort}
-                                onChange={(e) => setSelectedSort(e.target.value)}
+                                onChange={(e) => { setSelectedSort(e.target.value); setCurrentPage(1); }}
                                 className={styles.sortSelect}
                                 id="select-sort"
                             >
@@ -471,34 +505,72 @@ function BrowseContent() {
                                 <div className={styles.spinner} />
                             </div>
                         ) : mangas.length > 0 ? (
-                            <div className={styles.cardsGrid}>
-                                {mangas.map((manga) => (
-                                    <a href={`/manga/${manga.slug}`} key={manga._id} className={styles.card} id={`manga-card-${manga.slug}`}>
-                                        <div className={styles.cardImage}>
-                                            <img
-                                                src={manga.coverImage}
-                                                alt={manga.titleAr || manga.title}
-                                                className={styles.cardCoverImage}
-                                                loading="lazy"
-                                            />
-                                            {manga.isHot && (
-                                                <span className="badge badge-hot" style={{ position: 'absolute', top: '8px', right: '8px' }}>
-                                                    🔥 رائج
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className={styles.cardBody}>
-                                            <h3 className={styles.cardTitle}>{manga.titleAr || manga.title}</h3>
-                                            <div className={styles.cardMeta}>
-                                                <span className={styles.cardRating}>⭐ {manga.rating}</span>
-                                                <span style={{ fontSize: "10px", color: "var(--color-text-muted)" }}>
-                                                    {manga.type === "manhwa" ? "مانهوا كورية" : "مانجا يابانية"}
-                                                </span>
+                            <>
+                                <div className={styles.cardsGrid}>
+                                    {mangas.map((manga) => (
+                                        <a href={`/manga/${manga.slug}`} key={manga._id} className={styles.card} id={`manga-card-${manga.slug}`}>
+                                            <div className={styles.cardImage}>
+                                                <img
+                                                    src={manga.coverImage}
+                                                    alt={manga.titleAr || manga.title}
+                                                    className={styles.cardCoverImage}
+                                                    loading="lazy"
+                                                />
+                                                {manga.isHot && (
+                                                    <span className="badge badge-hot" style={{ position: 'absolute', top: '8px', right: '8px' }}>
+                                                        🔥 رائج
+                                                    </span>
+                                                )}
                                             </div>
-                                        </div>
-                                    </a>
-                                ))}
-                            </div>
+                                            <div className={styles.cardBody}>
+                                                <h3 className={styles.cardTitle}>{manga.titleAr || manga.title}</h3>
+                                                <div className={styles.cardMeta}>
+                                                    <span className={styles.cardRating}>⭐ {manga.rating}</span>
+                                                    <span style={{ fontSize: "10px", color: "var(--color-text-muted)" }}>
+                                                        {manga.type === "manhwa" ? "مانهوا كورية" : "مانجا يابانية"}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </a>
+                                    ))}
+                                </div>
+
+                                {/* Pagination Controls */}
+                                {totalPages > 1 && (
+                                    <div className={styles.pagination}>
+                                        <button 
+                                            className={styles.pageBtn} 
+                                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                            disabled={currentPage === 1}
+                                        >
+                                            السابق
+                                        </button>
+                                        
+                                        {getPageNumbers().map((page, index) => {
+                                            if (page === "...") {
+                                                return <span key={`dots-${index}`} className={styles.pageEllipsis}>...</span>;
+                                            }
+                                            return (
+                                                <button
+                                                    key={page}
+                                                    className={`${styles.pageBtn} ${currentPage === page ? styles.pageBtnActive : ""}`}
+                                                    onClick={() => setCurrentPage(page as number)}
+                                                >
+                                                    {page}
+                                                </button>
+                                            );
+                                        })}
+                                        
+                                        <button 
+                                            className={styles.pageBtn} 
+                                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                            disabled={currentPage === totalPages}
+                                        >
+                                            التالي
+                                        </button>
+                                    </div>
+                                )}
+                            </>
                         ) : (
                             <div className={styles.emptyState} id="empty-state">
                                 <span className={styles.emptyIcon}>🔍</span>
@@ -519,7 +591,7 @@ function BrowseContent() {
             <footer className={styles.footer}>
                 <div className={`container ${styles.footerInner}`}>
                     <div className={styles.footerBrand}>
-                        <span className={styles.logoIcon}>⛩️</span>
+                        <LogoIcon className={styles.logoIcon} />
                         <span className={styles.logoText}>MangaVerse</span>
                         <p className={styles.footerDesc}>
                             وجهتك الأولى لقراءة أفضل المانجا والمانهوا المترجمة للعربية.

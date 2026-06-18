@@ -25,22 +25,20 @@ const protect = async (req, res, next) => {
                 });
             }
 
-            next();
+            return next();
         } catch (error) {
             console.error("❌ Auth Error:", error.message);
-            res.status(401).json({
+            return res.status(401).json({
                 status: "error",
                 message: "غير مصرح بالدخول، التوكن غير صالح"
             });
         }
     }
 
-    if (!token) {
-        res.status(401).json({
-            status: "error",
-            message: "غير مصرح بالدخول، لا يوجد توكن"
-        });
-    }
+    return res.status(401).json({
+        status: "error",
+        message: "غير مصرح بالدخول، لا يوجد توكن"
+    });
 };
 
 // Middleware for admin authorization

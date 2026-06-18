@@ -1,7 +1,10 @@
 import React from "react";
 import styles from "./mangaDetails.module.css";
-import NavbarUserMenu from "@/app/components/NavbarUserMenu";
+import Navbar from "@/app/components/Navbar";
 import BookmarkButton from "@/app/components/BookmarkButton";
+import LogoIcon from "@/app/components/LogoIcon";
+import StarRating from "@/app/components/StarRating";
+import { StarIcon, EyeIcon, BookmarkIcon, SadFaceIcon } from "@/app/components/Icons";
 
 // Interface definitions
 interface MangaType {
@@ -210,7 +213,8 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
     if (!data) {
         return (
             <div className={styles.wrapper} style={{ padding: "100px 20px", textAlign: "center" }}>
-                <h1 style={{ fontSize: "2rem", marginBottom: "20px", color: "var(--color-accent)" }}>⛩️ المانجا غير موجودة</h1>
+                <SadFaceIcon size={48} style={{ marginBottom: "20px", color: "var(--color-accent)" }} />
+                <h1 style={{ fontSize: "2rem", marginBottom: "20px", color: "var(--color-accent)" }}>المانجا غير موجودة</h1>
                 <p style={{ color: "var(--color-text-secondary)", marginBottom: "30px" }}>عذراً، لم نتمكن من العثور على المانجا المطلوبة.</p>
                 <a href="/" className="btn btn-primary">العودة للرئيسية</a>
             </div>
@@ -287,33 +291,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             </div>
 
             {/* NAVBAR */}
-            <nav className={styles.navbar}>
-                <div className={`container ${styles.navInner}`}>
-                    <a href="/" className={styles.logo}>
-                        <span className={styles.logoIcon}>⛩️</span>
-                        <span className={styles.logoText}>MangaVerse</span>
-                    </a>
-                    <div className={styles.navLinks}>
-                        <a href="/" className={styles.navLink}>الرئيسية</a>
-                        <a href="/browse" className={styles.navLink}>التصفح</a>
-                        <a href="/popular" className={styles.navLink}>الأكثر شعبية</a>
-                        <a href="/latest" className={styles.navLink}>آخر الإصدارات</a>
-                    </div>
-                    <div className={styles.navActions}>
-                        <form action="/browse" method="GET" className={styles.searchBox}>
-                            <span className={styles.searchIcon}>🔍</span>
-                            <input
-                                type="text"
-                                name="q"
-                                placeholder="ابحث عن مانجا..."
-                                className={styles.searchInput}
-                                id="nav-search-input"
-                            />
-                        </form>
-                        <NavbarUserMenu />
-                    </div>
-                </div>
-            </nav>
+            <Navbar showSearch={true} />
 
             <main className="container" style={{ marginTop: "20px" }}>
                 {/* BREADCRUMB */}
@@ -347,17 +325,17 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                             <div className={styles.stats}>
                                 <div className={styles.statItem}>
                                     <span className={styles.statLabel}>التقييم</span>
-                                    <span className={`${styles.statValue} ${styles.statRating}`}>⭐ {manga.rating || "0.0"}</span>
+                                    <span className={`${styles.statValue} ${styles.statRating}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><StarIcon size={14} fill="#e94560" style={{ color: "#e94560" }} /> {manga.rating || "0.0"}</span>
                                 </div>
                                 <div style={{ width: '1px', height: '20px', background: 'rgba(255, 255, 255, 0.1)' }} />
                                 <div className={styles.statItem}>
                                     <span className={styles.statLabel}>المشاهدات</span>
-                                    <span className={styles.statValue}>👁️ {formatViews(manga.views)}</span>
+                                    <span className={styles.statValue} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><EyeIcon size={14} /> {formatViews(manga.views)}</span>
                                 </div>
                                 <div style={{ width: '1px', height: '20px', background: 'rgba(255, 255, 255, 0.1)' }} />
                                 <div className={styles.statItem}>
                                     <span className={styles.statLabel}>المفضلة</span>
-                                    <span className={styles.statValue}>🔖 {formatViews(manga.bookmarks)}</span>
+                                    <span className={styles.statValue} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><BookmarkIcon size={14} fill="currentColor" /> {formatViews(manga.bookmarks)}</span>
                                 </div>
                             </div>
 
@@ -378,6 +356,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                                 )}
                                 <BookmarkButton mangaId={manga._id} slug={manga.slug} />
                             </div>
+                            <StarRating mangaId={manga._id} initialAverageRating={manga.rating || 0} />
                         </div>
                     </div>
                 </section>
@@ -407,7 +386,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                                                 <span className={styles.chapterDate}>{formatTime(chapter.createdAt)}</span>
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                                <span className={styles.chapterViews}>👁️ {formatViews(chapter.views)}</span>
+                                                <span className={styles.chapterViews} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><EyeIcon size={12} /> {formatViews(chapter.views)}</span>
                                                 <a href={`/manga/${manga.slug}/${chapter.chapterNumber}`} className={styles.readBtn}>
                                                     قراءة
                                                 </a>
@@ -448,7 +427,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             <footer className={styles.footer}>
                 <div className={`container ${styles.footerInner}`}>
                     <div className={styles.footerBrand}>
-                        <span className={styles.logoIcon}>⛩️</span>
+                        <LogoIcon className={styles.logoIcon} />
                         <span className={styles.logoText}>MangaVerse</span>
                         <p className={styles.footerDesc}>
                             وجهتك الأولى لقراءة أفضل المانجا والمانهوا المترجمة للعربية.

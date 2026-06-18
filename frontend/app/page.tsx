@@ -1,5 +1,9 @@
 import styles from "./page.module.css";
-import NavbarUserMenu from "@/app/components/NavbarUserMenu";
+import Navbar from "@/app/components/Navbar";
+import LogoIcon from "@/app/components/LogoIcon";
+import BookmarkButton from "@/app/components/BookmarkButton";
+import RecentReadsShelf from "@/app/components/RecentReadsShelf";
+import { FlameIcon, StarIcon, EyeIcon } from "@/app/components/Icons";
 
 // Interface definitions for TypeScript safety
 interface MangaType {
@@ -201,33 +205,7 @@ export default async function Home() {
             </div>
 
             {/* ===== NAVBAR ===== */}
-            <nav className={styles.navbar}>
-                <div className={`container ${styles.navInner}`}>
-                    <a href="/" className={styles.logo}>
-                        <span className={styles.logoIcon}>⛩️</span>
-                        <span className={styles.logoText}>MangaVerse</span>
-                    </a>
-                    <div className={styles.navLinks}>
-                        <a href="/" className={styles.navLink}>الرئيسية</a>
-                        <a href="/browse" className={styles.navLink}>التصفح</a>
-                        <a href="/popular" className={styles.navLink}>الأكثر شعبية</a>
-                        <a href="/latest" className={styles.navLink}>آخر الإصدارات</a>
-                    </div>
-                    <div className={styles.navActions}>
-                        <form action="/browse" method="GET" className={styles.searchBox}>
-                            <span className={styles.searchIcon}>🔍</span>
-                            <input
-                                type="text"
-                                name="q"
-                                placeholder="ابحث عن مانجا..."
-                                className={styles.searchInput}
-                                id="nav-search-input"
-                            />
-                        </form>
-                        <NavbarUserMenu />
-                    </div>
-                </div>
-            </nav>
+            <Navbar showSearch={true} />
 
             {/* ===== HERO SECTION ===== */}
             <section className={styles.hero} style={{
@@ -237,7 +215,7 @@ export default async function Home() {
             }}>
                 <div className={styles.heroOverlay} />
                 <div className={`container ${styles.heroContent}`}>
-                    <span className={styles.heroBadge}>🔥 الأكثر رواجاً هذا الأسبوع</span>
+                    <span className={styles.heroBadge}><FlameIcon size={14} style={{ marginLeft: "6px", color: "#e94560" }} /> الأكثر رواجاً هذا الأسبوع</span>
                     <h1 className={styles.heroTitle}>{heroManga.titleAr || heroManga.title}</h1>
                     <p className={styles.heroDesc}>{heroManga.description}</p>
                     <div className={styles.heroMeta}>
@@ -247,14 +225,17 @@ export default async function Home() {
                         <span className="badge badge-genre" style={{ background: 'rgba(233, 69, 96, 0.15)', color: 'var(--color-accent)' }}>
                             {getMangaTypeName(heroManga.type)}
                         </span>
-                        <span className={styles.heroRating}>⭐ {heroManga.rating}</span>
+                        <span className={styles.heroRating}><StarIcon size={14} fill="#e94560" style={{ marginLeft: "4px", color: "#e94560" }} /> {heroManga.rating}</span>
                     </div>
                     <div className={styles.heroActions}>
                         <a href={`/manga/${heroManga.slug}`} className="btn btn-primary" id="hero-read-btn">ابدأ القراءة</a>
-                        <button className="btn btn-outline" id="hero-bookmark-btn">أضف للمكتبة</button>
+                        <BookmarkButton mangaId={heroManga._id!} slug={heroManga.slug!} />
                     </div>
                 </div>
             </section>
+
+            {/* ===== RECENT READS ===== */}
+            <RecentReadsShelf />
 
             {/* ===== LATEST UPDATES ===== */}
             <section className={styles.section}>
@@ -280,7 +261,7 @@ export default async function Home() {
                                     }}>
                                         {manga.type === "manhwa" ? "مانهوا" : "مانجا"}
                                     </span>
-                                    {manga.isHot && <span className="badge badge-hot" style={{ position: 'absolute', top: '8px', right: '8px' }}>🔥 رائج</span>}
+                                    {manga.isHot && <span className="badge badge-hot" style={{ position: 'absolute', top: '8px', right: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}><FlameIcon size={10} /> رائج</span>}
                                 </div>
                                 <div className={styles.cardBody}>
                                     <h3 className={styles.cardTitle}>{manga.titleAr || manga.title}</h3>
@@ -317,10 +298,10 @@ export default async function Home() {
                                         {manga.genres?.slice(0, 2).map((g, i) => (
                                             <span key={i} className="badge badge-genre">{g}</span>
                                         ))}
-                                        <span className={styles.popularRating}>⭐ {manga.rating}</span>
+                                        <span className={styles.popularRating} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}><StarIcon size={12} fill="#e94560" style={{ color: "#e94560" }} /> {manga.rating}</span>
                                     </div>
                                 </div>
-                                <span className={styles.popularViews}>👁️ {formatViews(manga.views)} مشاهدة</span>
+                                <span className={styles.popularViews} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><EyeIcon size={12} /> {formatViews(manga.views)} مشاهدة</span>
                             </a>
                         ))}
                     </div>
@@ -331,7 +312,7 @@ export default async function Home() {
             <footer className={styles.footer}>
                 <div className={`container ${styles.footerInner}`}>
                     <div className={styles.footerBrand}>
-                        <span className={styles.logoIcon}>⛩️</span>
+                        <LogoIcon className={styles.logoIcon} />
                         <span className={styles.logoText}>MangaVerse</span>
                         <p className={styles.footerDesc}>
                             وجهتك الأولى لقراءة أفضل المانجا والمانهوا المترجمة للعربية.

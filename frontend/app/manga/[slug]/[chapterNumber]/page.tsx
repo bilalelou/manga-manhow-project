@@ -1,7 +1,7 @@
 import React from "react";
 import styles from "./chapterReader.module.css";
-import ChapterSelector from "./ChapterSelector";
-import HistoryTracker from "@/app/components/HistoryTracker";
+import ReaderContent from "./ReaderContent";
+import { SadFaceIcon } from "@/app/components/Icons";
 
 // Interface definitions
 interface MangaType {
@@ -274,7 +274,8 @@ export default async function Page({
     if (!data) {
         return (
             <div className={styles.wrapper} style={{ padding: "100px 20px", textAlign: "center" }}>
-                <h1 style={{ fontSize: "2rem", marginBottom: "20px", color: "var(--color-accent)" }}>⛩️ الفصل غير موجود</h1>
+                <SadFaceIcon size={48} style={{ marginBottom: "20px", color: "var(--color-accent)" }} />
+                <h1 style={{ fontSize: "2rem", marginBottom: "20px", color: "var(--color-accent)" }}>الفصل غير موجود</h1>
                 <p style={{ color: "var(--color-text-secondary)", marginBottom: "30px" }}>عذراً، لم نتمكن من العثور على الفصل المطلوب لهذا العمل.</p>
                 <a href={`/manga/${slug}`} className="btn btn-primary">العودة لتفاصيل العمل</a>
             </div>
@@ -283,137 +284,12 @@ export default async function Page({
 
     const { manga, chapters, chapter, isConnected } = data;
 
-    // Navigation logic based on the list of chapters
-    const sortedChapters = [...chapters].sort((a, b) => a.chapterNumber - b.chapterNumber);
-    const currentIndex = sortedChapters.findIndex((c) => c.chapterNumber === chNumber);
-
-    const prevChapter = currentIndex > 0 ? sortedChapters[currentIndex - 1] : null;
-    const nextChapter = currentIndex < sortedChapters.length - 1 ? sortedChapters[currentIndex + 1] : null;
-
-    const mangaTitle = manga.titleAr || manga.title;
-
     return (
-        <div className={styles.wrapper}>
-            <HistoryTracker mangaId={manga._id} chapterNumber={chNumber} />
-            {/* Diagnostic database connection state */}
-            <div style={{
-                position: 'fixed',
-                bottom: '20px',
-                left: '20px',
-                zIndex: 1000,
-                background: isConnected ? 'rgba(0, 200, 80, 0.9)' : 'rgba(233, 69, 96, 0.9)',
-                color: 'white',
-                padding: '8px 16px',
-                borderRadius: '9999px',
-                fontSize: '12px',
-                fontWeight: 'bold',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                backdropFilter: 'blur(8px)'
-            }}>
-                <span style={{
-                    width: '8px',
-                    height: '8px',
-                    borderRadius: '50%',
-                    background: 'white',
-                    display: 'inline-block',
-                }} />
-                {isConnected ? 'متصل بقاعدة البيانات' : 'نمط المحاكاة الاحتياطي (DB offline)'}
-            </div>
-
-            {/* STICKY HEADER CONTROLS */}
-            <header className={styles.readerHeader}>
-                <div className={`container ${styles.headerInner}`}>
-                    <a href={`/manga/${manga.slug}`} className={styles.mangaLink}>
-                        <span className={styles.mangaIcon}>⛩️</span>
-                        <span>{mangaTitle}</span>
-                    </a>
-
-                    <div className={styles.controls}>
-                        {/* Next Chapter Button (Moves to higher chapter number) */}
-                        <a
-                            href={nextChapter ? `/manga/${manga.slug}/${nextChapter.chapterNumber}` : "#"}
-                            className={`${styles.navBtn}`}
-                            style={!nextChapter ? { pointerEvents: "none", opacity: 0.3 } : {}}
-                            title="الفصل التالي"
-                        >
-                            <span>التالي</span>
-                            <span>⬅️</span>
-                        </a>
-
-                        {/* Dropdown Selector */}
-                        <ChapterSelector
-                            slug={manga.slug}
-                            chapters={chapters}
-                            currentChapterNumber={chNumber}
-                        />
-
-                        {/* Previous Chapter Button (Moves to lower chapter number) */}
-                        <a
-                            href={prevChapter ? `/manga/${manga.slug}/${prevChapter.chapterNumber}` : "#"}
-                            className={`${styles.navBtn}`}
-                            style={!prevChapter ? { pointerEvents: "none", opacity: 0.3 } : {}}
-                            title="الفصل السابق"
-                        >
-                            <span>➡️</span>
-                            <span>السابق</span>
-                        </a>
-                    </div>
-                </div>
-            </header>
-
-            {/* MAIN IMAGE READING SECTION */}
-            <main className={styles.readerViewport}>
-                <div className={styles.pagesContainer}>
-                    {chapter.pages && chapter.pages.length > 0 ? (
-                        chapter.pages
-                            .sort((a, b) => a.pageNumber - b.pageNumber)
-                            .map((page, index) => (
-                                <div key={index} className={styles.pageWrapper}>
-                                    <img
-                                        src={page.imageUrl}
-                                        alt={`صفحة ${page.pageNumber}`}
-                                        className={styles.pageImage}
-                                        loading={index === 0 ? "eager" : "lazy"}
-                                        id={`page-${page.pageNumber}`}
-                                    />
-                                </div>
-                            ))
-                    ) : (
-                        <div style={{ padding: "50px 20px", textAlign: "center", color: "var(--color-text-muted)" }}>
-                            لا توجد صفحات متوفرة في هذا الفصل حالياً.
-                        </div>
-                    )}
-                </div>
-
-                {/* BOTTOM NAVIGATION CONTROLS */}
-                <div className={styles.bottomControls}>
-                    <div className={styles.bottomNav}>
-                        <a
-                            href={nextChapter ? `/manga/${manga.slug}/${nextChapter.chapterNumber}` : "#"}
-                            className="btn btn-primary"
-                            style={!nextChapter ? { pointerEvents: "none", opacity: 0.3 } : {}}
-                        >
-                            الفصل التالي ⬅️
-                        </a>
-
-                        <a href={`/manga/${manga.slug}`} className={styles.bottomMangaLink}>
-                            <span>⛩️</span>
-                            <span>العودة للمكتبة</span>
-                        </a>
-
-                        <a
-                            href={prevChapter ? `/manga/${manga.slug}/${prevChapter.chapterNumber}` : "#"}
-                            className="btn btn-outline"
-                            style={!prevChapter ? { pointerEvents: "none", opacity: 0.3 } : {}}
-                        >
-                            ➡️ الفصل السابق
-                        </a>
-                    </div>
-                </div>
-            </main>
-        </div>
+        <ReaderContent
+            manga={manga}
+            chapter={chapter}
+            chapters={chapters}
+            isConnected={isConnected}
+        />
     );
 }

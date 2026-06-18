@@ -11,7 +11,7 @@ const { protect, adminOrTranslator } = require("../middleware/authMiddleware");
 router.get("/", async (req, res) => {
     try {
         const isDbConnected = mongoose.connection.readyState === 1;
-        const { featured, hot, type, limit, sort, q, genre, status } = req.query;
+        const { featured, hot, type, limit, sort, q, genre, status, page } = req.query;
 
         if (!isDbConnected) {
             console.log("⚠️ DB disconnected, serving mock mangas.");
@@ -39,11 +39,25 @@ router.get("/", async (req, res) => {
                 data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             }
 
-            if (limit) {
-                data = data.slice(0, parseInt(limit));
-            }
+            const totalItems = data.length;
+            const parsedLimit = limit ? parseInt(limit) : 4;
+            const parsedPage = page ? parseInt(page) : 1;
+            const skip = (parsedPage - 1) * parsedLimit;
+            
+            data = data.slice(skip, skip + parsedLimit);
 
-            return res.status(200).json({ status: "success", count: data.length, data, isFallback: true });
+            return res.status(200).json({ 
+                status: "success", 
+                count: data.length, 
+                pagination: {
+                    page: parsedPage,
+                    limit: parsedLimit,
+                    totalItems,
+                    totalPages: Math.ceil(totalItems / parsedLimit)
+                },
+                data, 
+                isFallback: true 
+            });
         }
 
         let query = {};
@@ -60,6 +74,11 @@ router.get("/", async (req, res) => {
             ];
         }
 
+        const totalItems = await Manga.countDocuments(query);
+        const parsedLimit = limit ? parseInt(limit) : 4;
+        const parsedPage = page ? parseInt(page) : 1;
+        const skip = (parsedPage - 1) * parsedLimit;
+
         let mangaQuery = Manga.find(query);
 
         // Sorting
@@ -71,13 +90,21 @@ router.get("/", async (req, res) => {
             mangaQuery = mangaQuery.sort({ createdAt: -1 });
         }
 
-        // Limit
-        if (limit) {
-            mangaQuery = mangaQuery.limit(parseInt(limit));
-        }
+        // Apply pagination limit and skip
+        mangaQuery = mangaQuery.skip(skip).limit(parsedLimit);
 
         const mangas = await mangaQuery;
-        res.status(200).json({ status: "success", count: mangas.length, data: mangas });
+        res.status(200).json({ 
+            status: "success", 
+            count: mangas.length, 
+            pagination: {
+                page: parsedPage,
+                limit: parsedLimit,
+                totalItems,
+                totalPages: Math.ceil(totalItems / parsedLimit)
+            },
+            data: mangas 
+        });
     } catch (err) {
         res.status(500).json({ status: "error", message: err.message });
     }
