@@ -115,6 +115,9 @@ const mockMangas = [
     }
 ];
 
+const fs = require("fs");
+const path = require("path");
+
 const mockChapters = {};
 mockMangas.forEach(manga => {
     mockChapters[manga._id] = [
@@ -149,7 +152,54 @@ mockMangas.forEach(manga => {
     ];
 });
 
+// Dynamically load A Man's Man if metadata exists
+try {
+    const aMansManMetadataPath = path.join(__dirname, "../public/uploads/a-mans-man-metadata.json");
+    if (fs.existsSync(aMansManMetadataPath)) {
+        const metadata = JSON.parse(fs.readFileSync(aMansManMetadataPath, "utf8"));
+        
+        // Add A Man's Man manga if not already in mockMangas
+        const aMansManId = "60c72b2f9b1d8b2c88888899";
+        const exists = mockMangas.some(m => m._id === aMansManId);
+        if (!exists) {
+            mockMangas.push({
+                _id: aMansManId,
+                title: "A Man's Man",
+                titleAr: "رجل الرجل",
+                slug: "a-mans-man",
+                description: "هان يو-هيون هو أصغر رئيس تنفيذي لشركة إلكترونيات كبرى، لكن نجاحه بُني على حساب علاقاته الإنسانية وصداقاته. عندما يجد نفسه وحيداً في القمة، يحصل على فرصة ثانية للعودة بالزمن وإصلاح أخطائه وتحقيق النجاح بطريقة مختلفة مع حماية الأشخاص الذين يحبهم.",
+                coverImage: "/uploads/a-mans-man/ch_1_page_1.jpg",
+                type: "manhwa",
+                status: "ongoing",
+                genres: ["دراما", "خيال", "عمل", "حياة يومية"],
+                author: "Dogado",
+                artist: "Dogado",
+                rating: 9.6,
+                views: 12000,
+                bookmarks: 450,
+                isHot: true,
+                isFeatured: true,
+                createdAt: "2026-06-18T12:00:00.000Z"
+            });
+        }
+        
+        // Format chapters and add to mockChapters
+        mockChapters[aMansManId] = metadata.map((ch) => ({
+            _id: `60c72b2f9b1d8b2c8888899${ch.chapterNumber}`,
+            manga: aMansManId,
+            chapterNumber: ch.chapterNumber,
+            title: ch.title,
+            views: ch.views || 0,
+            pages: ch.pages,
+            createdAt: ch.createdAt
+        }));
+    }
+} catch (err) {
+    console.error("Error loading a-mans-man metadata:", err);
+}
+
 module.exports = {
     mockMangas,
     mockChapters
 };
+
