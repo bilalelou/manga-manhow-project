@@ -87,6 +87,8 @@ export default function AdminDashboard() {
     const [chapterPagesText, setChapterPagesText] = useState("");
     const [chapterSubmitting, setChapterSubmitting] = useState(false);
     const [uploadingPages, setUploadingPages] = useState(false);
+    const [isBulkChapter, setIsBulkChapter] = useState(false);
+    const [bulkChapterText, setBulkChapterText] = useState("");
 
     // Form: Manage Chapters State
     const [selectedMangaForChapters, setSelectedMangaForChapters] = useState("");
@@ -391,47 +393,125 @@ export default function AdminDashboard() {
             triggerAlert("error", "يرجى اختيار العمل أولاً");
             return;
         }
-        if (!chapterNumber) {
-            triggerAlert("error", "رقم الفصل مطلوب");
-            return;
-        }
-        if (!chapterPagesText.trim()) {
-            triggerAlert("error", "يرجى لصق أو رفع روابط الصفحات");
-            return;
-        }
 
         setChapterSubmitting(true);
         try {
-            const urls = chapterPagesText.split("\n").map(l => l.trim()).filter(Boolean);
-            const formattedPages = urls.map((url, index) => ({
-                pageNumber: index + 1,
-                imageUrl: url
-            }));
+            if (isBulkChapter) {
+                if (!bulkChapterText.trim()) {
+                    triggerAlert("error", "يرجى كتابة أو لصق محتوى الفصول جماعياً");
+                    setChapterSubmitting(false);
+                    return;
+                }
 
-            const bodyData = {
-                mangaId: chapterMangaId,
-                chapterNumber: Number(chapterNumber),
-                title: chapterTitle,
-                pages: formattedPages
-            };
+                const lines = bulkChapterText.split("\n");
+                const parsedChapters: { chapterNumber: number; title: string; pages: string[] }[] = [];
+                let currentChapter: { chapterNumber: number; title: string; pages: string[] } | null = null;
 
-            const res = await fetch(`${API_URL}/chapters`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`
-                },
-                body: JSON.stringify(bodyData)
-            });
+                for (let line of lines) {
+                    line = line.trim();
+                    if (!line) continue;
 
-            const data = await res.json();
-            if (data.status === "success") {
-                triggerAlert("success", `تم إضافة الفصل رقم ${chapterNumber} بنجاح!`);
-                setChapterNumber("");
-                setChapterTitle("");
-                setChapterPagesText("");
+                    // Match marker like === الفصل 5 === or === Chapter 5.5 === or === 5 === or === 5 : العنوان ===
+                    const chapterMatch = line.match(/===\s*(?:الفصل|Chapter)?\s*(\d+(\.\d+)?)\s*(?::\s*(.*?))?\s*===/i)
+                                      || line.match(/^#+\s*(?:الفصل|Chapter)?\s*(\d+(\.\d+)?)\s*(?::\s*(.*?))?$/i);
+
+                    if (chapterMatch) {
+                        const num = parseFloat(chapterMatch[1]);
+                        const title = chapterMatch[3] ? chapterMatch[3].trim() : "";
+                        currentChapter = {
+                            chapterNumber: num,
+                            title: title,
+                            pages: []
+                        };
+                        parsedChapters.push(currentChapter);
+                    } else if (line.startsWith("http://") || line.startsWith("https://") || line.startsWith("/")) {
+                        if (currentChapter) {
+                            currentChapter.pages.push(line);
+                        }
+                    }
+                }
+
+                if (parsedChapters.length === 0) {
+                    triggerAlert("error", "لم يتم العثور على أي فصول صالحة للتحليل. يرجى مراجعة التنسيق (مثال: === الفصل 1 ===)");
+                    setChapterSubmitting(false);
+                    return;
+                }
+
+                // Verify each chapter has pages
+                const invalidChapters = parsedChapters.filter(c => c.pages.length === 0);
+                if (invalidChapters.length > 0) {
+                    triggerAlert("error", `الفصول التالية لا تحتوي على صفحات: ${invalidChapters.map(c => c.chapterNumber).join(", ")}`);
+                    setChapterSubmitting(false);
+                    return;
+                }
+
+                const res = await fetch(`${API_URL}/chapters/bulk`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        mangaId: chapterMangaId,
+                        chapters: parsedChapters
+                    })
+                });
+
+                const data = await res.json();
+                if (data.status === "success") {
+                    let alertMsg = `تم استيراد ${data.addedCount} فصول بنجاح! (${data.addedChapters.join(", ")})`;
+                    if (data.errors && data.errors.length > 0) {
+                        alertMsg += ` • تنبيه: بعض الفصول لم تضاف: ${data.errors.map((e: any) => `الفصل ${e.chapterNumber}: ${e.message}`).join(" | ")}`;
+                    }
+                    triggerAlert("success", alertMsg);
+                    setBulkChapterText("");
+                } else {
+                    triggerAlert("error", data.message || "فشل استيراد الفصول جماعياً");
+                }
             } else {
-                triggerAlert("error", data.message || "فشل رفع الفصل");
+                // Single Chapter Mode
+                if (!chapterNumber) {
+                    triggerAlert("error", "رقم الفصل مطلوب");
+                    setChapterSubmitting(false);
+                    return;
+                }
+                if (!chapterPagesText.trim()) {
+                    triggerAlert("error", "يرجى لصق أو رفع روابط الصفحات");
+                    setChapterSubmitting(false);
+                    return;
+                }
+
+                const urls = chapterPagesText.split("\n").map(l => l.trim()).filter(Boolean);
+                const formattedPages = urls.map((url, index) => ({
+                    pageNumber: index + 1,
+                    imageUrl: url
+                }));
+
+                const bodyData = {
+                    mangaId: chapterMangaId,
+                    chapterNumber: Number(chapterNumber),
+                    title: chapterTitle,
+                    pages: formattedPages
+                };
+
+                const res = await fetch(`${API_URL}/chapters`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`
+                    },
+                    body: JSON.stringify(bodyData)
+                });
+
+                const data = await res.json();
+                if (data.status === "success") {
+                    triggerAlert("success", `تم إضافة الفصل رقم ${chapterNumber} بنجاح!`);
+                    setChapterNumber("");
+                    setChapterTitle("");
+                    setChapterPagesText("");
+                } else {
+                    triggerAlert("error", data.message || "فشل رفع الفصل");
+                }
             }
         } catch (err) {
             triggerAlert("error", "حدث خطأ أثناء الاتصال بالخادم لحفظ الفصل");
@@ -867,16 +947,36 @@ export default function AdminDashboard() {
                 {/* TAB CONTENT: ADD CHAPTER */}
                 {activeTab === "add-chapter" && (
                     <div className={styles.card}>
-                        <h3 className={styles.formSectionTitle} style={{ marginBottom: '1.5rem' }}>إضافة فصل جديد لعمل موجود</h3>
+                        <h3 className={styles.formSectionTitle} style={{ marginBottom: '1.5rem' }}>إضافة أو استيراد فصول جديدة لعمل موجود</h3>
+                        
+                        {/* Mode toggle */}
+                        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem' }}>
+                            <button
+                                type="button"
+                                className={`${styles.tabBtn} ${!isBulkChapter ? styles.tabBtnActive : ""}`}
+                                onClick={() => setIsBulkChapter(false)}
+                            >
+                                📄 رفع فصل فردي
+                            </button>
+                            <button
+                                type="button"
+                                className={`${styles.tabBtn} ${isBulkChapter ? styles.tabBtnActive : ""}`}
+                                onClick={() => setIsBulkChapter(true)}
+                            >
+                                📚 استيراد فصول متعددة (جماعي)
+                            </button>
+                        </div>
+
                         <form onSubmit={handleChapterSubmit}>
                             <div className={styles.formGrid}>
-                                <div className={styles.formGroup}>
-                                    <label className={styles.label}>اختر المانجا/المانهوا *</label>
+                                <div className={styles.formGroupFull} style={{ marginBottom: '1rem' }}>
+                                    <label className={styles.label}>اختر المانجا/المانهوا المستهدفة *</label>
                                     <select
                                         className={styles.select}
                                         value={chapterMangaId}
                                         onChange={(e) => setChapterMangaId(e.target.value)}
                                         required
+                                        style={{ width: '100%', marginTop: '0.5rem' }}
                                     >
                                         <option value="">-- اختر العمل --</option>
                                         {mangas.map((m) => (
@@ -884,59 +984,95 @@ export default function AdminDashboard() {
                                         ))}
                                     </select>
                                 </div>
-                                <div className={styles.formGroup}>
-                                    <label className={styles.label}>رقم الفصل *</label>
-                                    <input
-                                        type="number"
-                                        step="1"
-                                        min="1"
-                                        className={styles.input}
-                                        placeholder="مثال: 5"
-                                        value={chapterNumber}
-                                        onChange={(e) => setChapterNumber(e.target.value)}
-                                        required
-                                    />
-                                </div>
-                                <div className={styles.formGroupFull}>
-                                    <label className={styles.label}>عنوان الفصل (اختياري)</label>
-                                    <input
-                                        type="text"
-                                        className={styles.input}
-                                        placeholder="مثال: بداية معركة جديدة"
-                                        value={chapterTitle}
-                                        onChange={(e) => setChapterTitle(e.target.value)}
-                                    />
-                                </div>
-                                
-                                <div className={styles.formGroupFull}>
-                                    <label className={styles.label}>رفع صور الفصل محلياً دفعة واحدة</label>
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        multiple
-                                        onChange={handlePagesUpload}
-                                        className={styles.input}
-                                        style={{ display: 'none' }}
-                                        id="pages-upload-files"
-                                    />
-                                    <label htmlFor="pages-upload-files" className={`${styles.btn} ${styles.btnOutline}`} style={{ cursor: 'pointer', display: 'flex', gap: '8px', width: 'fit-content' }}>
-                                        📂 {uploadingPages ? "جاري رفع صور الصفحات..." : "اختر صور الفصل لرفعها بالكامل"}
-                                    </label>
-                                </div>
 
-                                <div className={styles.formGroupFull}>
-                                    <label className={styles.label}>روابط صفحات الفصل (رابط واحد في كل سطر) *</label>
-                                    <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '4px' }}>
-                                        عند اختيار ورفع الصور محلياً، سيتم توليد الروابط هنا تلقائياً، أو يمكنك كتابة/لصق روابط خارجية مباشرة.
-                                    </p>
-                                    <textarea
-                                        className={`${styles.textarea} ${styles.textareaPages}`}
-                                        placeholder="https://example.com/page1.jpg&#10;https://example.com/page2.jpg"
-                                        value={chapterPagesText}
-                                        onChange={(e) => setChapterPagesText(e.target.value)}
-                                        required
-                                    />
-                                </div>
+                                {!isBulkChapter ? (
+                                    <>
+                                        {/* Single Chapter Mode UI */}
+                                        <div className={styles.formGroup}>
+                                            <label className={styles.label}>رقم الفصل *</label>
+                                            <input
+                                                type="number"
+                                                step="1"
+                                                min="1"
+                                                className={styles.input}
+                                                placeholder="مثال: 5"
+                                                value={chapterNumber}
+                                                onChange={(e) => setChapterNumber(e.target.value)}
+                                                required={!isBulkChapter}
+                                            />
+                                        </div>
+                                        <div className={styles.formGroup}>
+                                            <label className={styles.label}>عنوان الفصل (اختياري)</label>
+                                            <input
+                                                type="text"
+                                                className={styles.input}
+                                                placeholder="مثال: بداية معركة جديدة"
+                                                value={chapterTitle}
+                                                onChange={(e) => setChapterTitle(e.target.value)}
+                                            />
+                                        </div>
+                                        
+                                        <div className={styles.formGroupFull}>
+                                            <label className={styles.label}>رفع صور الفصل محلياً دفعة واحدة</label>
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                multiple
+                                                onChange={handlePagesUpload}
+                                                className={styles.input}
+                                                style={{ display: 'none' }}
+                                                id="pages-upload-files"
+                                            />
+                                            <label htmlFor="pages-upload-files" className={`${styles.btn} ${styles.btnOutline}`} style={{ cursor: 'pointer', display: 'flex', gap: '8px', width: 'fit-content', marginTop: '0.5rem' }}>
+                                                📂 {uploadingPages ? "جاري رفع صور الصفحات..." : "اختر صور الفصل لرفعها بالكامل"}
+                                            </label>
+                                        </div>
+
+                                        <div className={styles.formGroupFull}>
+                                            <label className={styles.label}>روابط صفحات الفصل (رابط واحد في كل سطر) *</label>
+                                            <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '4px' }}>
+                                                عند اختيار ورفع الصور محلياً، سيتم توليد الروابط هنا تلقائياً، أو يمكنك كتابة/لصق روابط خارجية مباشرة.
+                                            </p>
+                                            <textarea
+                                                className={`${styles.textarea} ${styles.textareaPages}`}
+                                                placeholder="https://example.com/page1.jpg&#10;https://example.com/page2.jpg"
+                                                value={chapterPagesText}
+                                                onChange={(e) => setChapterPagesText(e.target.value)}
+                                                required={!isBulkChapter}
+                                            />
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        {/* Bulk Chapter Mode UI */}
+                                        <div className={styles.formGroupFull}>
+                                            <div style={{ background: 'rgba(233, 69, 96, 0.05)', border: '1px dashed rgba(233, 69, 96, 0.2)', padding: '15px', borderRadius: '8px', marginBottom: '15px' }}>
+                                                <h4 style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--color-accent)', marginBottom: '8px' }}>💡 دليل تنسيق الاستيراد الجماعي للمترجمين:</h4>
+                                                <p style={{ fontSize: '11px', color: 'var(--color-text-secondary)', lineHeight: '1.6' }}>
+                                                    انسخ والصق الفصول بالترتيب التالي. استخدم ثلاث علامات يساوي `===` متبوعة برقم الفصل وعنوان اختياري، ثم روابط الصفحات أسفلها مباشرة:
+                                                </p>
+                                                <pre style={{ fontSize: '10px', color: 'var(--color-text-muted)', background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '4px', marginTop: '10px', direction: 'ltr', textAlign: 'left' }}>
+{`=== الفصل 1 : البداية ===
+https://example.com/ch1_page1.jpg
+https://example.com/ch1_page2.jpg
+
+=== الفصل 2 : معركة حاسمة ===
+https://example.com/ch2_page1.jpg
+https://example.com/ch2_page2.jpg`}
+                                                </pre>
+                                            </div>
+                                            <label className={styles.label}>محتوى الاستيراد الجماعي للفصول *</label>
+                                            <textarea
+                                                className={`${styles.textarea} ${styles.textareaPages}`}
+                                                style={{ minHeight: '300px' }}
+                                                placeholder="=== الفصل 1 ===&#10;https://images.com/p1.jpg&#10;&#10;=== الفصل 2 ===&#10;https://images.com/p2.jpg"
+                                                value={bulkChapterText}
+                                                onChange={(e) => setBulkChapterText(e.target.value)}
+                                                required={isBulkChapter}
+                                            />
+                                        </div>
+                                    </>
+                                )}
                             </div>
                             <div className={styles.actionsBar}>
                                 <button
@@ -944,7 +1080,7 @@ export default function AdminDashboard() {
                                     className={`${styles.btn} ${styles.btnPrimary}`}
                                     disabled={chapterSubmitting || uploadingPages}
                                 >
-                                    {chapterSubmitting ? "جاري حفظ الفصل..." : "رفع وحفظ الفصل"}
+                                    {chapterSubmitting ? "جاري استيراد الفصول..." : isBulkChapter ? "بدء الاستيراد الجماعي ⚡" : "رفع وحفظ الفصل"}
                                 </button>
                             </div>
                         </form>

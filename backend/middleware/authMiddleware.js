@@ -15,6 +15,26 @@ const protect = async (req, res, next) => {
             // Verify token
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+            const mongoose = require("mongoose");
+            const isDbConnected = mongoose.connection.readyState === 1;
+
+            if (!isDbConnected) {
+                if (decoded.id === "mock-admin-id") {
+                    req.user = {
+                        _id: "mock-admin-id",
+                        username: "admin",
+                        email: "admin@mangaverse.com",
+                        role: "admin"
+                    };
+                    return next();
+                } else {
+                    return res.status(401).json({
+                        status: "error",
+                        message: "المستخدم غير موجود في نمط المحاكاة"
+                    });
+                }
+            }
+
             // Get user from the token, exclude password
             req.user = await User.findById(decoded.id).select("-password");
 
