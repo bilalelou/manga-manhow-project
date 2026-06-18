@@ -86,7 +86,8 @@ router.post("/login", async (req, res, next) => {
         const isDbConnected = mongoose.connection.readyState === 1;
 
         if (!isDbConnected) {
-            if (email === "admin@mangaverse.com" && password === "password123") {
+            // Mock login ONLY in development mode
+            if (process.env.NODE_ENV !== 'production' && email === "admin@mangaverse.com" && password === "password123") {
                 return res.status(200).json({
                     status: "success",
                     data: {
@@ -100,7 +101,7 @@ router.post("/login", async (req, res, next) => {
             } else {
                 return res.status(401).json({
                     status: "error",
-                    message: "الحساب غير مسجل في نمط المحاكاة (استخدم البريد الإلكتروني admin@mangaverse.com والرقم السري password123)"
+                    message: "قاعدة البيانات غير متصلة. يرجى المحاولة لاحقاً."
                 });
             }
         }

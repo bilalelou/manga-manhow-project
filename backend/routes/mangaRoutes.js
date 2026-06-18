@@ -6,6 +6,11 @@ const Chapter = require("../models/Chapter");
 const { mockMangas, mockChapters } = require("../data/mockData");
 const { protect, adminOrTranslator } = require("../middleware/authMiddleware");
 
+// Utility: escape user input for safe use in RegExp
+function escapeRegex(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // @desc Get all mangas with optional filters
 // @route GET /api/mangas
 router.get("/", async (req, res) => {
@@ -67,10 +72,11 @@ router.get("/", async (req, res) => {
         if (status) query.status = status;
         if (genre) query.genres = genre;
         if (q) {
+            const safeQ = escapeRegex(q);
             query.$or = [
-                { title: { $regex: q, $options: "i" } },
-                { titleAr: { $regex: q, $options: "i" } },
-                { description: { $regex: q, $options: "i" } }
+                { title: { $regex: safeQ, $options: "i" } },
+                { titleAr: { $regex: safeQ, $options: "i" } },
+                { description: { $regex: safeQ, $options: "i" } }
             ];
         }
 
@@ -206,12 +212,19 @@ router.post("/", protect, adminOrTranslator, async (req, res) => {
 // @route PUT /api/mangas/:id
 router.put("/:id", protect, adminOrTranslator, async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ status: "error", message: "معرف المانجا غير صالح" });
+        }
+
         const { title, titleAr, description, coverImage, type, status, genres, author, artist, rating, isHot, isFeatured } = req.body;
         const manga = await Manga.findById(req.params.id);
 
         if (!manga) {
             return res.status(404).json({ status: "error", message: "المانجا غير موجودة" });
         }
+
+        // Save original title BEFORE updating, for slug comparison
+        const originalTitle = manga.title;
 
         manga.title = title || manga.title;
         manga.titleAr = titleAr !== undefined ? titleAr : manga.titleAr;
@@ -229,7 +242,7 @@ router.put("/:id", protect, adminOrTranslator, async (req, res) => {
         manga.isFeatured = isFeatured !== undefined ? !!isFeatured : manga.isFeatured;
 
         // Recalculate slug if title changed
-        if (title && title !== manga.title) {
+        if (title && title !== originalTitle) {
             const newSlug = title.toLowerCase()
                 .replace(/[^a-z0-9]+/g, "-")
                 .replace(/(^-|-$)/g, "");
@@ -252,10 +265,36 @@ router.put("/:id", protect, adminOrTranslator, async (req, res) => {
 router.delete("/:id", protect, adminOrTranslator, async (req, res) => {
     try {
         const mangaId = req.params.id;
+
+        if (!mongoose.Types.ObjectId.isValid(mangaId)) {
+            return res.status(400).json({ status: "error", message: "معرف المانجا غير صالح" });
+        }
+
         const manga = await Manga.findById(mangaId);
 
         if (!manga) {
             return res.status(404).json({ status: "error", message: "المانجا غير موجودة" });
+        }
+
+        // Collect all local image files from chapters for cleanup
+        const fs = require("fs");
+        const path = require("path");
+        const chapters = await Chapter.find({ manga: mangaId });
+        const filesToDelete = [];
+
+        for (const chapter of chapters) {
+            for (const page of chapter.pages || []) {
+                if (page.imageUrl && page.imageUrl.startsWith("/uploads/")) {
+                    const filePath = path.join(__dirname, "../public", page.imageUrl);
+                    filesToDelete.push(filePath);
+                }
+            }
+        }
+
+        // Also clean up cover image if it's a local upload
+        if (manga.coverImage && manga.coverImage.startsWith("/uploads/")) {
+            const coverPath = path.join(__dirname, "../public", manga.coverImage);
+            filesToDelete.push(coverPath);
         }
 
         // Delete all chapters associated with this manga
@@ -264,7 +303,18 @@ router.delete("/:id", protect, adminOrTranslator, async (req, res) => {
         // Delete the manga itself
         await Manga.findByIdAndDelete(mangaId);
 
-        res.status(200).json({ status: "success", message: "تم حذف العمل وكافة الفصول التابعة له بنجاح" });
+        // Clean up files from disk (non-blocking, best-effort)
+        for (const filePath of filesToDelete) {
+            try {
+                if (fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                }
+            } catch (fileErr) {
+                console.warn(`⚠️ Could not delete file: ${filePath}`, fileErr.message);
+            }
+        }
+
+        res.status(200).json({ status: "success", message: "تم حذف العمل وكافة الفصول والملفات التابعة له بنجاح" });
     } catch (err) {
         res.status(500).json({ status: "error", message: err.message });
     }

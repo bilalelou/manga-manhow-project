@@ -1,8 +1,15 @@
 const express = require("express");
 const router = express.Router();
+const mongoose = require("mongoose");
 const Comment = require("../models/Comment");
 const Manga = require("../models/Manga");
 const { protect } = require("../middleware/authMiddleware");
+
+// Sanitize user input: strip all HTML tags to prevent XSS
+function sanitizeText(str) {
+    if (typeof str !== "string") return "";
+    return str.replace(/<[^>]*>/g, "").trim();
+}
 
 // Auto-hide threshold: if a comment gets this many reports, hide it
 const REPORT_HIDE_THRESHOLD = 3;
@@ -13,7 +20,11 @@ const REPORT_HIDE_THRESHOLD = 3;
 router.get("/manga/:mangaId/chapter/:chapterNumber", async (req, res, next) => {
     try {
         const { mangaId, chapterNumber } = req.params;
-        const { sort } = req.query; // "newest" (default) or "likes"
+        const { sort } = req.query;
+
+        if (!mongoose.Types.ObjectId.isValid(mangaId)) {
+            return res.status(400).json({ status: "error", message: "معرف المانجا غير صالح" });
+        }
 
         // Build sort criteria
         let sortCriteria;
@@ -91,6 +102,16 @@ router.post("/", protect, async (req, res, next) => {
             });
         }
 
+        if (!mongoose.Types.ObjectId.isValid(mangaId)) {
+            return res.status(400).json({ status: "error", message: "معرف المانجا غير صالح" });
+        }
+
+        // Sanitize content to prevent XSS
+        const cleanContent = sanitizeText(content);
+        if (!cleanContent) {
+            return res.status(400).json({ status: "error", message: "محتوى التعليق فارغ بعد التنظيف" });
+        }
+
         // Verify manga exists
         const manga = await Manga.findById(mangaId);
         if (!manga) {
@@ -104,7 +125,7 @@ router.post("/", protect, async (req, res, next) => {
             manga: mangaId,
             chapterNumber: Number(chapterNumber),
             user: req.user._id,
-            content,
+            content: cleanContent,
             parentComment: null,
         });
 
@@ -130,11 +151,21 @@ router.post("/:id/reply", protect, async (req, res, next) => {
         const { content } = req.body;
         const parentId = req.params.id;
 
+        if (!mongoose.Types.ObjectId.isValid(parentId)) {
+            return res.status(400).json({ status: "error", message: "معرف التعليق غير صالح" });
+        }
+
         if (!content || !content.trim()) {
             return res.status(400).json({
                 status: "error",
                 message: "محتوى الرد مطلوب",
             });
+        }
+
+        // Sanitize content to prevent XSS
+        const cleanContent = sanitizeText(content);
+        if (!cleanContent) {
+            return res.status(400).json({ status: "error", message: "محتوى الرد فارغ بعد التنظيف" });
         }
 
         // Find parent comment
@@ -155,7 +186,7 @@ router.post("/:id/reply", protect, async (req, res, next) => {
             manga: parentComment.manga,
             chapterNumber: parentComment.chapterNumber,
             user: req.user._id,
-            content: content.trim(),
+            content: cleanContent,
             parentComment: actualParentId,
         });
 

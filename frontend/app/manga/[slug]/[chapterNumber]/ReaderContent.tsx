@@ -183,33 +183,35 @@ export default function ReaderContent({
         <div className={styles.wrapper}>
             <HistoryTracker mangaId={manga._id} chapterNumber={chapter.chapterNumber} />
             
-            {/* Connection badge for diagnostic */}
-            <div style={{
-                position: 'fixed',
-                bottom: '20px',
-                left: '20px',
-                zIndex: 1000,
-                background: isConnected ? 'rgba(0, 200, 80, 0.9)' : 'rgba(233, 69, 96, 0.9)',
-                color: 'white',
-                padding: '8px 16px',
-                borderRadius: '9999px',
-                fontSize: '12px',
-                fontWeight: 'bold',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                backdropFilter: 'blur(8px)'
-            }}>
-                <span style={{
-                    width: '8px',
-                    height: '8px',
-                    borderRadius: '50%',
-                    background: 'white',
-                    display: 'inline-block',
-                }} />
-                {isConnected ? 'متصل بقاعدة البيانات' : 'نمط المحاكاة الاحتياطي (DB offline)'}
-            </div>
+            {/* Connection badge for diagnostic — only in development */}
+            {process.env.NODE_ENV !== 'production' && (
+                <div style={{
+                    position: 'fixed',
+                    bottom: '20px',
+                    left: '20px',
+                    zIndex: 1000,
+                    background: isConnected ? 'rgba(0, 200, 80, 0.9)' : 'rgba(233, 69, 96, 0.9)',
+                    color: 'white',
+                    padding: '8px 16px',
+                    borderRadius: '9999px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    backdropFilter: 'blur(8px)'
+                }}>
+                    <span style={{
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        background: 'white',
+                        display: 'inline-block',
+                    }} />
+                    {isConnected ? 'متصل بقاعدة البيانات' : 'نمط المحاكاة الاحتياطي (DB offline)'}
+                </div>
+            )}
 
             {/* STICKY HEADER CONTROLS */}
             <header className={styles.readerHeader}>
